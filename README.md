@@ -289,15 +289,6 @@ Built with:
 |  1048576  |      876   |     1154   |      868   |     1341   |
 
 
-The performance on the tegra K1 is pretty impressive. I'm not
-including the FFTW numbers as they as slightly below the scalar
-fftpack numbers, so something must be wrong (however it seems to be
-correctly configured and is using neon simd instructions).
-
-When using clang 3.4 the pffft version is even a bit faster, reaching
-5.7 GFlops for real ffts of size 1024.
-
-
 iPad Air 2 with iOS9, xcode 8.0, arm64. The cpu is an Apple A8X, supposedly running at 1.5GHz.
 
 | input len |real FFTPack|  real vDSP | real PFFFT |cplx FFTPack|  cplx vDSP | cplx PFFFT |
