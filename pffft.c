@@ -246,6 +246,8 @@ void validate_pffft_simd() {
          a2.f[0], a2.f[1], a2.f[2], a2.f[3], a3.f[0], a3.f[1], a3.f[2], a3.f[3]); 
   assertv4(a0, 0, 4, 8, 12); assertv4(a1, 1, 5, 9, 13); assertv4(a2, 2, 6, 10, 14); assertv4(a3, 3, 7, 11, 15);
 }
+#else
+void validate_pffft_simd() {} // allow test_pffft.c to call this function even when simd is not available..
 #endif //!PFFFT_SIMD_DISABLE
 
 /* SSE and co like 16-bytes aligned pointers */
