@@ -211,7 +211,7 @@ typedef union v4sf_union {
 #define assertv4(v,f0,f1,f2,f3) assert(v.f[0] == (f0) && v.f[1] == (f1) && v.f[2] == (f2) && v.f[3] == (f3))
 
 /* detect bugs with the vector support macros */
-void validate_pffft_simd() {
+void validate_pffft_simd(void) {
   float f[16] = { 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 };
   v4sf_union a0, a1, a2, a3, t, u; 
   memcpy(a0.f, f, 4*sizeof(float));
@@ -322,7 +322,7 @@ static NEVER_INLINE(void) passf3_ps(int ido, int l1, const v4sf *cc, v4sf *ch,
       dr3 = VADD(cr2, ci3);
       di2 = VADD(ci2, cr3);
       di3 = VSUB(ci2, cr3);
-      wr1=wa1[i], wi1=fsign*wa1[i+1], wr2=wa2[i], wi2=fsign*wa2[i+1]; 
+      wr1=wa1[i]; wi1=fsign*wa1[i+1]; wr2=wa2[i]; wi2=fsign*wa2[i+1];
       VCPLXMUL(dr2, di2, LD_PS1(wr1), LD_PS1(wi1));
       ch[i+l1ido] = dr2; 
       ch[i+l1ido + 1] = di2;
@@ -382,14 +382,14 @@ static NEVER_INLINE(void) passf4_ps(int ido, int l1, const v4sf *cc, v4sf *ch,
         cr4 = VSUB(tr1, tr4);
         ci2 = VADD(ti1, ti4);
         ci4 = VSUB(ti1, ti4);
-        wr1=wa1[i], wi1=fsign*wa1[i+1];
+        wr1=wa1[i]; wi1=fsign*wa1[i+1];
         VCPLXMUL(cr2, ci2, LD_PS1(wr1), LD_PS1(wi1));
-        wr2=wa2[i], wi2=fsign*wa2[i+1]; 
+        wr2=wa2[i]; wi2=fsign*wa2[i+1];
         ch[i + l1ido] = cr2;
         ch[i + l1ido + 1] = ci2;
 
         VCPLXMUL(cr3, ci3, LD_PS1(wr2), LD_PS1(wi2));
-        wr3=wa3[i], wi3=fsign*wa3[i+1]; 
+        wr3=wa3[i]; wi3=fsign*wa3[i+1];
         ch[i + 2*l1ido] = cr3;
         ch[i + 2*l1ido + 1] = ci3;
 
@@ -451,8 +451,8 @@ static NEVER_INLINE(void) passf5_ps(int ido, int l1, const v4sf *cc, v4sf *ch,
       dr2 = VSUB(cr2, ci5);
       di5 = VSUB(ci2, cr5);
       di2 = VADD(ci2, cr5);
-      wr1=wa1[i], wi1=fsign*wa1[i+1], wr2=wa2[i], wi2=fsign*wa2[i+1]; 
-      wr3=wa3[i], wi3=fsign*wa3[i+1], wr4=wa4[i], wi4=fsign*wa4[i+1]; 
+      wr1=wa1[i]; wi1=fsign*wa1[i+1]; wr2=wa2[i]; wi2=fsign*wa2[i+1];
+      wr3=wa3[i]; wi3=fsign*wa3[i+1]; wr4=wa4[i]; wi4=fsign*wa4[i+1];
       VCPLXMUL(dr2, di2, LD_PS1(wr1), LD_PS1(wi1));
       ch_ref(i - 1, 2) = dr2;
       ch_ref(i, 2)     = di2;
