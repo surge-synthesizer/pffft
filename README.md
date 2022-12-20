@@ -1,5 +1,15 @@
 PFFFT: a pretty fast FFT.
 
+## Surge Fork
+
+This is a Surge fork of PFFFT, which is originally found [here](https://bitbucket.org/jpommier/pffft/src/master/).
+
+The fork is to allow for some easier development, like applying
+some patches to deal with compiler warnings, creating a C++ wrapper,
+or implementing support for the SIMDE library.
+
+The remainder of the original PFFFT README follows.
+
 ## TL;DR
 
 PFFFT does 1D Fast Fourier Transforms, of single precision real and
@@ -87,9 +97,9 @@ operation.
 Benchmark results
 --
 
-The benchmark shows the performance of various fft implementations measured in 
+The benchmark shows the performance of various fft implementations measured in
 MFlops, with the number of floating point operations being defined as 5Nlog2(N)
-for a length N complex fft, and 2.5*Nlog2(N) for a real fft. 
+for a length N complex fft, and 2.5*Nlog2(N) for a real fft.
 See http://www.fftw.org/speed/method.html for an explanation of these formulas.
 
 2021 update: I'm now including Intel MKL, and I'm removing old benchmarks results for cpu that have
@@ -315,6 +325,3 @@ iPad Air 2 with iOS9, xcode 8.0, arm64. The cpu is an Apple A8X, supposedly runn
 |    32768  |      768   |     4269   |     2882   |      606   |     4405   |     2604   |
 |   262144  |      724   |     3527   |     2630   |      534   |     2418   |     2157   |
 |  1048576  |      674   |     1467   |     2135   |      530   |     1621   |     2055   |
-
-
-
