@@ -5,6 +5,6 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 
 message(STATUS "Including local pffft")
-add_library(${PROJECT_NAME} pffft.c pffft.h)
+add_library(${PROJECT_NAME} pffft.c pffft.h pffft.hpp)
 add_library(surge::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME} INTERFACE .)
