@@ -83,6 +83,11 @@
 extern "C" {
 #endif
 
+#ifndef PFFFT_SIMD_DISABLE
+  // Detects compiler bugs with respect to simd instruction.
+  void validate_pffft_simd();
+#endif
+
   /* opaque struct holding internal stuff (precomputed twiddle factors)
      this struct can be shared by many threads as it contains only
      read-only data.  
