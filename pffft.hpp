@@ -1,6 +1,6 @@
 // FFT wrapper class, to be used for C++ code.
-// Contains an API that allocates its outputs, as well as an API that takes already-allocated arrays.
-// For the tl;dr of how to use it, scroll down to the "FFT" class.
+// Contains an API that allocates its outputs, as well as an API that takes already-allocated
+// arrays. For the tl;dr of how to use it, scroll down to the "FFT" class.
 #pragma once
 
 #include <complex>
@@ -184,7 +184,7 @@ template <typename T, std::size_t N> class FFT
     //
     // Input and output may alias.
     //
-    // The InputVector/OutputVector API will perform allocations. If you're in a tight loop or
+    // The TimeVector/FreqVector API will perform allocations. If you're in a tight loop or
     // otherwise need to avoid heap allocations, use the array API instead. The array API will throw
     // if the input and output pointers are improperly aligned.
     FreqVector forward(const TimeVector &time);
@@ -194,7 +194,7 @@ template <typename T, std::size_t N> class FFT
 
     // Inverse Fourier transform.
     //
-    // The InputVector/OutputVector API will perform allocations. If you're in a tight loop or
+    // The TimeVector/FreqVector API will perform allocations. If you're in a tight loop or
     // otherwise need to avoid heap allocations, use the array API instead. The array API will throw
     // if the input and output pointers are improperly aligned.
     TimeVector inverse(const FreqVector &freq);
