@@ -1,3 +1,6 @@
+// C++ wrapper for PFFFT, taken from the marton78 fork.
+// Modified to check for power-of-two sizing at compile time, rather than runtime.
+
 /* Copyright (c) 2020  Dario Mambro ( dario.mambro@gmail.com )
    Copyright (c) 2020  Hayati Ayguen ( h_ayguen@web.de )
 
@@ -34,12 +37,17 @@
 #include <vector>
 #include <limits>
 #include <cassert>
+#include <type_traits>
 
 namespace pffft
 {
 namespace detail
 {
 #include "pffft.h"
+
+// Utility function to make sure our inputs are powers of two.
+// Can't use the Juce one because we're in a split-out library.
+static constexpr bool IsPowerOfTwo(size_t x) { return x && (x & (x - 1)) == 0; }
 } // namespace detail
 } // namespace pffft
 
@@ -59,26 +67,12 @@ template <> struct Types<float>
     typedef float Scalar;
     typedef std::complex<Scalar> Complex;
     static int simd_size() { return detail::pffft_simd_size(); }
-    static const char *simd_arch() { return detail::pffft_simd_arch(); }
-    static int minFFtsize() { return pffft_min_fft_size(detail::PFFFT_REAL); }
-    static bool isValidSize(int N) { return pffft_is_valid_size(N, detail::PFFFT_REAL); }
-    static int nearestTransformSize(int N, bool higher)
-    {
-        return pffft_nearest_transform_size(N, detail::PFFFT_REAL, higher ? 1 : 0);
-    }
 };
 template <> struct Types<std::complex<float>>
 {
     typedef float Scalar;
     typedef std::complex<float> Complex;
     static int simd_size() { return detail::pffft_simd_size(); }
-    static const char *simd_arch() { return detail::pffft_simd_arch(); }
-    static int minFFtsize() { return pffft_min_fft_size(detail::PFFFT_COMPLEX); }
-    static bool isValidSize(int N) { return pffft_is_valid_size(N, detail::PFFFT_COMPLEX); }
-    static int nearestTransformSize(int N, bool higher)
-    {
-        return pffft_nearest_transform_size(N, detail::PFFFT_COMPLEX, higher ? 1 : 0);
-    }
 };
 
 // Allocator
@@ -92,9 +86,17 @@ template <typename T> class Setup;
 // define AlignedVector<T> utilizing 'using' in C++11
 template <typename T> using AlignedVector = typename std::vector<T, PFAlloc<T>>;
 
-// T can be float or std::complex<double>.
-template <typename T> class Fft
+// T can be float or std::complex<float>.
+template <typename T, std::size_t N> class Fft
 {
+    // Ensure we're either a float or complex<float>.
+    static_assert(std::is_same_v<float, typename std::remove_cv<T>::type> ||
+                      std::is_same_v<std::complex<float>, typename std::remove_cv<T>::type>,
+                  "T parameter must be either float or std::complex<float>.");
+
+    // Ensure that the size is a power of two.
+    static_assert(detail::IsPowerOfTwo(N), "N parameter must be a power of two.");
+
   public:
     // define types value_type, Scalar and Complex
     typedef T value_type;
@@ -106,60 +108,28 @@ template <typename T> class Fft
     static bool isFloatScalar() { return sizeof(Scalar) == sizeof(float); }
     static bool isDoubleScalar() { return sizeof(Scalar) == sizeof(double); }
 
-    // simple helper to determine next power of 2 - without inexact/rounding floating point
-    // operations
-    static int nextPowerOfTwo(int N) { return detail::pffft_next_power_of_two(N); }
-    static bool isPowerOfTwo(int N) { return detail::pffft_is_power_of_two(N) ? true : false; }
-
     static int simd_size() { return Types<T>::simd_size(); }
-    static const char *simd_arch() { return Types<T>::simd_arch(); }
-
-    // simple helper to get minimum possible fft length
-    static int minFFtsize() { return Types<T>::minFFtsize(); }
-
-    // helper to determine nearest transform size - factorizable to minFFtsize() with factors 2, 3,
-    // 5
-    static bool isValidSize(int N) { return Types<T>::isValidSize(N); }
-    static int nearestTransformSize(int N, bool higher = true)
-    {
-        return Types<T>::nearestTransformSize(N, higher);
-    }
 
     //////////////////
 
     /*
-     * Contructor, with transformation length, preparing transforms.
+     * Contructor, preparing transforms.
      *
-     * For length <= stackThresholdLen, the stack is used for the internal
-     * work memory. for bigger length', the heap is used.
+     * For N <= stackThresholdLen, the stack is used for the internal
+     * work memory. for bigger N, the heap is used.
      *
      * Using the stack is probably the best strategy for small
      * FFTs, say for N <= 4096). Threads usually have a small stack, that
      * there's no sufficient amount of memory, usually leading to a crash!
      */
-    Fft(int length, int stackThresholdLen = 4096);
+    Fft(int stackThresholdLen = 4096);
 
     /*
-     * constructor or prepareLength() produced a valid FFT instance?
-     * delivers false for invalid FFT sizes
+     * constructor produced a valid FFT instance?
      */
     bool isValid() const;
 
     ~Fft();
-
-    /*
-     * prepare for transformation length 'newLength'.
-     * length is identical to forward()'s input vector's size,
-     * and also equals inverse()'s output vector size.
-     * this function is no simple setter. it pre-calculates twiddle factors.
-     * returns true if newLength is >= minFFtsize, false otherwise
-     */
-    bool prepareLength(int newLength);
-
-    /*
-     * retrieve the transformation length.
-     */
-    int getLength() const { return length; }
 
     /*
      * retrieve size of complex spectrum vector,
@@ -357,11 +327,6 @@ template <typename T> inline T *alignedAlloc(int length)
 
 inline void alignedFree(void *ptr) { detail::pffft_aligned_free(ptr); }
 
-// simple helper to determine next power of 2 - without inexact/rounding floating point operations
-inline int nextPowerOfTwo(int N) { return detail::pffft_next_power_of_two(N); }
-
-inline bool isPowerOfTwo(int N) { return detail::pffft_is_power_of_two(N) ? true : false; }
-
 ////////////////////////////////////////////////////////////////////
 
 // implementation
@@ -417,11 +382,6 @@ template <> class Setup<float>
     {
         pffft_zconvolve_accumulate(self, dft_a, dft_b, dft_ab, scaling);
     }
-
-    void convolve(const Scalar *dft_a, const Scalar *dft_b, Scalar *dft_ab, const Scalar scaling)
-    {
-        pffft_zconvolve_no_accu(self, dft_a, dft_b, dft_ab, scaling);
-    }
 };
 
 template <> class Setup<std::complex<float>>
@@ -462,145 +422,120 @@ template <> class Setup<std::complex<float>>
     {
         pffft_zreorder(self, input, output, direction);
     }
-
-    void convolve(const Scalar *dft_a, const Scalar *dft_b, Scalar *dft_ab, const Scalar scaling)
-    {
-        pffft_zconvolve_no_accu(self, dft_a, dft_b, dft_ab, scaling);
-    }
 };
 
 } // namespace detail
 
-template <typename T>
-inline Fft<T>::Fft(int length, int stackThresholdLen)
-    : work(NULL), length(0), stackThresholdLen(stackThresholdLen)
+template <typename T, std::size_t N>
+inline Fft<T, N>::Fft(int stackThresholdLen)
+    : work(NULL), length(N), stackThresholdLen(stackThresholdLen)
 {
     static_assert(sizeof(Complex) == 2 * sizeof(Scalar),
                   "pffft requires sizeof(std::complex<>) == 2 * sizeof(Scalar)");
-    prepareLength(length);
-}
 
-template <typename T> inline Fft<T>::~Fft() { alignedFree(work); }
-
-template <typename T> inline bool Fft<T>::isValid() const { return setup.isValid(); }
-
-template <typename T> inline bool Fft<T>::prepareLength(int newLength)
-{
-    if (newLength < minFFtsize())
-        return false;
-
-    const bool wasOnHeap = (work != NULL);
-
-    const bool useHeap = newLength > stackThresholdLen;
-
-    if (useHeap == wasOnHeap && newLength == length)
-    {
-        return true;
-    }
-
-    length = 0;
-
-    setup.prepareLength(newLength);
-    if (!setup.isValid())
-        return false;
-
-    length = newLength;
-
-    if (work)
-    {
-        alignedFree(work);
-        work = NULL;
-    }
-
+    const bool useHeap = N > stackThresholdLen;
+    setup.prepareLength(N);
     if (useHeap)
     {
         work = reinterpret_cast<Scalar *>(alignedAllocType(length));
     }
-
-    return true;
 }
 
-template <typename T> inline AlignedVector<T> Fft<T>::valueVector() const
+template <typename T, std::size_t N> inline Fft<T, N>::~Fft()
+{
+    if (work)
+    {
+        alignedFree(work);
+    }
+}
+
+template <typename T, std::size_t N> inline bool Fft<T, N>::isValid() const
+{
+    return setup.isValid();
+}
+
+template <typename T, std::size_t N> inline AlignedVector<T> Fft<T, N>::valueVector() const
 {
     return AlignedVector<T>(length);
 }
 
-template <typename T> inline AlignedVector<typename Fft<T>::Complex> Fft<T>::spectrumVector() const
+template <typename T, std::size_t N>
+inline AlignedVector<typename Fft<T, N>::Complex> Fft<T, N>::spectrumVector() const
 {
     return AlignedVector<Complex>(getSpectrumSize());
 }
 
-template <typename T>
-inline AlignedVector<typename Fft<T>::Scalar> Fft<T>::internalLayoutVector() const
+template <typename T, std::size_t N>
+inline AlignedVector<typename Fft<T, N>::Scalar> Fft<T, N>::internalLayoutVector() const
 {
     return AlignedVector<Scalar>(getInternalLayoutSize());
 }
 
-template <typename T>
-inline AlignedVector<typename Fft<T>::Complex> &Fft<T>::forward(const AlignedVector<T> &input,
-                                                                AlignedVector<Complex> &spectrum)
+template <typename T, std::size_t N>
+inline AlignedVector<typename Fft<T, N>::Complex> &
+Fft<T, N>::forward(const AlignedVector<T> &input, AlignedVector<Complex> &spectrum)
 {
     forward(input.data(), spectrum.data());
     return spectrum;
 }
 
-template <typename T>
-inline AlignedVector<T> &Fft<T>::inverse(const AlignedVector<Complex> &spectrum,
-                                         AlignedVector<T> &output)
+template <typename T, std::size_t N>
+inline AlignedVector<T> &Fft<T, N>::inverse(const AlignedVector<Complex> &spectrum,
+                                            AlignedVector<T> &output)
 {
     inverse(spectrum.data(), output.data());
     return output;
 }
 
-template <typename T>
-inline AlignedVector<typename Fft<T>::Scalar> &
-Fft<T>::forwardToInternalLayout(const AlignedVector<T> &input,
-                                AlignedVector<Scalar> &spectrum_internal_layout)
+template <typename T, std::size_t N>
+inline AlignedVector<typename Fft<T, N>::Scalar> &
+Fft<T, N>::forwardToInternalLayout(const AlignedVector<T> &input,
+                                   AlignedVector<Scalar> &spectrum_internal_layout)
 {
     forwardToInternalLayout(input.data(), spectrum_internal_layout.data());
     return spectrum_internal_layout;
 }
 
-template <typename T>
+template <typename T, std::size_t N>
 inline AlignedVector<T> &
-Fft<T>::inverseFromInternalLayout(const AlignedVector<Scalar> &spectrum_internal_layout,
-                                  AlignedVector<T> &output)
+Fft<T, N>::inverseFromInternalLayout(const AlignedVector<Scalar> &spectrum_internal_layout,
+                                     AlignedVector<T> &output)
 {
     inverseFromInternalLayout(spectrum_internal_layout.data(), output.data());
     return output;
 }
 
-template <typename T>
-inline void Fft<T>::reorderSpectrum(const AlignedVector<Scalar> &input,
-                                    AlignedVector<Complex> &output)
+template <typename T, std::size_t N>
+inline void Fft<T, N>::reorderSpectrum(const AlignedVector<Scalar> &input,
+                                       AlignedVector<Complex> &output)
 {
     reorderSpectrum(input.data(), output.data());
 }
 
-template <typename T>
-inline AlignedVector<typename Fft<T>::Scalar> &
-Fft<T>::convolveAccumulate(const AlignedVector<Scalar> &spectrum_internal_a,
-                           const AlignedVector<Scalar> &spectrum_internal_b,
-                           AlignedVector<Scalar> &spectrum_internal_ab, const Scalar scaling)
+template <typename T, std::size_t N>
+inline AlignedVector<typename Fft<T, N>::Scalar> &
+Fft<T, N>::convolveAccumulate(const AlignedVector<Scalar> &spectrum_internal_a,
+                              const AlignedVector<Scalar> &spectrum_internal_b,
+                              AlignedVector<Scalar> &spectrum_internal_ab, const Scalar scaling)
 {
     convolveAccumulate(spectrum_internal_a.data(), spectrum_internal_b.data(),
                        spectrum_internal_ab.data(), scaling);
     return spectrum_internal_ab;
 }
 
-template <typename T>
-inline AlignedVector<typename Fft<T>::Scalar> &
-Fft<T>::convolve(const AlignedVector<Scalar> &spectrum_internal_a,
-                 const AlignedVector<Scalar> &spectrum_internal_b,
-                 AlignedVector<Scalar> &spectrum_internal_ab, const Scalar scaling)
+template <typename T, std::size_t N>
+inline AlignedVector<typename Fft<T, N>::Scalar> &
+Fft<T, N>::convolve(const AlignedVector<Scalar> &spectrum_internal_a,
+                    const AlignedVector<Scalar> &spectrum_internal_b,
+                    AlignedVector<Scalar> &spectrum_internal_ab, const Scalar scaling)
 {
     convolve(spectrum_internal_a.data(), spectrum_internal_b.data(), spectrum_internal_ab.data(),
              scaling);
     return spectrum_internal_ab;
 }
 
-template <typename T>
-inline typename Fft<T>::Complex *Fft<T>::forward(const T *input, Complex *spectrum)
+template <typename T, std::size_t N>
+inline typename Fft<T, N>::Complex *Fft<T, N>::forward(const T *input, Complex *spectrum)
 {
     assert(isValid());
     setup.transform_ordered(reinterpret_cast<const Scalar *>(input),
@@ -608,7 +543,8 @@ inline typename Fft<T>::Complex *Fft<T>::forward(const T *input, Complex *spectr
     return spectrum;
 }
 
-template <typename T> inline T *Fft<T>::inverse(Complex const *spectrum, T *output)
+template <typename T, std::size_t N>
+inline T *Fft<T, N>::inverse(Complex const *spectrum, T *output)
 {
     assert(isValid());
     setup.transform_ordered(reinterpret_cast<const Scalar *>(spectrum),
@@ -616,9 +552,9 @@ template <typename T> inline T *Fft<T>::inverse(Complex const *spectrum, T *outp
     return output;
 }
 
-template <typename T>
-inline typename pffft::Fft<T>::Scalar *
-Fft<T>::forwardToInternalLayout(const T *input, Scalar *spectrum_internal_layout)
+template <typename T, std::size_t N>
+inline typename pffft::Fft<T, N>::Scalar *
+Fft<T, N>::forwardToInternalLayout(const T *input, Scalar *spectrum_internal_layout)
 {
     assert(isValid());
     setup.transform(reinterpret_cast<const Scalar *>(input), spectrum_internal_layout, work,
@@ -626,8 +562,8 @@ Fft<T>::forwardToInternalLayout(const T *input, Scalar *spectrum_internal_layout
     return spectrum_internal_layout;
 }
 
-template <typename T>
-inline T *Fft<T>::inverseFromInternalLayout(const Scalar *spectrum_internal_layout, T *output)
+template <typename T, std::size_t N>
+inline T *Fft<T, N>::inverseFromInternalLayout(const Scalar *spectrum_internal_layout, T *output)
 {
     assert(isValid());
     setup.transform(spectrum_internal_layout, reinterpret_cast<Scalar *>(output), work,
@@ -635,45 +571,50 @@ inline T *Fft<T>::inverseFromInternalLayout(const Scalar *spectrum_internal_layo
     return output;
 }
 
-template <typename T> inline void Fft<T>::reorderSpectrum(const Scalar *input, Complex *output)
+template <typename T, std::size_t N>
+inline void Fft<T, N>::reorderSpectrum(const Scalar *input, Complex *output)
 {
     assert(isValid());
     setup.reorder(input, reinterpret_cast<Scalar *>(output), detail::PFFFT_FORWARD);
 }
 
-template <typename T>
-inline typename pffft::Fft<T>::Scalar *
-Fft<T>::convolveAccumulate(const Scalar *dft_a, const Scalar *dft_b, Scalar *dft_ab,
-                           const Scalar scaling)
+template <typename T, std::size_t N>
+inline typename pffft::Fft<T, N>::Scalar *
+Fft<T, N>::convolveAccumulate(const Scalar *dft_a, const Scalar *dft_b, Scalar *dft_ab,
+                              const Scalar scaling)
 {
     assert(isValid());
     setup.convolveAccumulate(dft_a, dft_b, dft_ab, scaling);
     return dft_ab;
 }
 
-template <typename T>
-inline typename pffft::Fft<T>::Scalar *Fft<T>::convolve(const Scalar *dft_a, const Scalar *dft_b,
-                                                        Scalar *dft_ab, const Scalar scaling)
+template <typename T, std::size_t N>
+inline typename pffft::Fft<T, N>::Scalar *
+Fft<T, N>::convolve(const Scalar *dft_a, const Scalar *dft_b, Scalar *dft_ab, const Scalar scaling)
 {
     assert(isValid());
     setup.convolve(dft_a, dft_b, dft_ab, scaling);
     return dft_ab;
 }
 
-template <typename T> inline void Fft<T>::alignedFree(void *ptr) { pffft::alignedFree(ptr); }
+template <typename T, std::size_t N> inline void Fft<T, N>::alignedFree(void *ptr)
+{
+    pffft::alignedFree(ptr);
+}
 
-template <typename T> inline T *pffft::Fft<T>::alignedAllocType(int length)
+template <typename T, std::size_t N> inline T *pffft::Fft<T, N>::alignedAllocType(int length)
 {
     return alignedAlloc<T>(length);
 }
 
-template <typename T>
-inline typename pffft::Fft<T>::Scalar *pffft::Fft<T>::alignedAllocScalar(int length)
+template <typename T, std::size_t N>
+inline typename pffft::Fft<T, N>::Scalar *pffft::Fft<T, N>::alignedAllocScalar(int length)
 {
     return alignedAlloc<Scalar>(length);
 }
 
-template <typename T> inline typename Fft<T>::Complex *Fft<T>::alignedAllocComplex(int length)
+template <typename T, std::size_t N>
+inline typename Fft<T, N>::Complex *Fft<T, N>::alignedAllocComplex(int length)
 {
     return alignedAlloc<Complex>(length);
 }
