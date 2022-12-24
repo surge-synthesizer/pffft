@@ -224,12 +224,7 @@ template <typename T, std::size_t N> FFT<T, N>::FFT(bool use_stack)
 {
     if (!use_stack)
     {
-        std::size_t amount = N;
-        if (FftType == internal::PFFFT_COMPLEX)
-        {
-            amount *= 2;
-        }
-        work_ = new (std::align_val_t(alignment)) T[amount];
+        work_ = new (std::align_val_t(alignment)) float[spectrum_size * 2];
     }
     setup_ = pffft_new_setup(N, FftType);
 }
