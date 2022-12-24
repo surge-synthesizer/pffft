@@ -173,8 +173,9 @@ template <typename T, std::size_t N> class FFT
     explicit FFT(bool use_stack = false);
     ~FFT();
 
-    // Size of the complex spectrum vector (aka, the output of forward()).
-    std::size_t size() const { return (FftType == internal::PFFFT_COMPLEX ? N : N / 2); }
+    // Functions to provide pre-allocated vectors in the exactly correct sizes for the FFT.
+    TimeVector createTimeVector() const;
+    FreqVector createFreqVector() const;
 
     // Perform a Fourier transform.
     // Output is in canonical form, AKA the familiar array of interleaved complex numbers:
@@ -188,8 +189,11 @@ template <typename T, std::size_t N> class FFT
     // otherwise need to avoid heap allocations, use the array API instead. The array API will throw
     // if the input and output pointers are improperly aligned.
     FreqVector forward(const TimeVector &time);
+    // Alternate vector API for use with preallocated vectors.
+    void forward(const TimeVector &time, FreqVector &freq);
+    // Array API.
     void forward(const TimeArray &time, FreqArray &freq);
-    // time must have N elements, and freq must have spectrum_size elements.
+    // Raw pointer API. time must have N elements, and freq must have spectrum_size elements.
     void forward(const T *time, Complex *freq);
 
     // Inverse Fourier transform.
@@ -198,8 +202,11 @@ template <typename T, std::size_t N> class FFT
     // otherwise need to avoid heap allocations, use the array API instead. The array API will throw
     // if the input and output pointers are improperly aligned.
     TimeVector inverse(const FreqVector &freq);
+    // Alternate vector API for use with preallocated vectors.
+    void inverse(const FreqVector &freq, TimeVector &time);
+    // Array API.
     void inverse(const FreqArray &freq, TimeArray &time);
-    // freq must have spectrum_size elements, and time must have N elements.
+    // Raw pointer API. freq must have spectrum_size elements, and time must have N elements.
     void inverse(const Complex *freq, T *time);
 
     // Helper methods for scaling the output of the forward transform.
@@ -237,19 +244,29 @@ template <typename T, std::size_t N> FFT<T, N>::~FFT()
 }
 
 template <typename T, std::size_t N>
+typename FFT<T, N>::TimeVector FFT<T, N>::createTimeVector() const
+{
+    return TimeVector(N);
+}
+
+template <typename T, std::size_t N>
+typename FFT<T, N>::FreqVector FFT<T, N>::createFreqVector() const
+{
+    return FreqVector(spectrum_size);
+}
+
+template <typename T, std::size_t N>
 typename FFT<T, N>::FreqVector FFT<T, N>::forward(const TimeVector &time)
 {
-    FreqVector out;
-    if (FftType == internal::PFFFT_COMPLEX)
-    {
-        out.resize(N);
-    }
-    else
-    {
-        out.resize(N / 2);
-    }
+    FreqVector out = createFreqVector();
     forward(time.data(), out.data());
     return out;
+}
+
+template <typename T, std::size_t N>
+void FFT<T, N>::forward(const TimeVector &time, FreqVector &freq)
+{
+    forward(time.data(), freq.data());
 }
 
 template <typename T, std::size_t N> void FFT<T, N>::forward(const TimeArray &time, FreqArray &freq)
@@ -276,9 +293,15 @@ template <typename T, std::size_t N> void FFT<T, N>::forward(const T *time, Comp
 template <typename T, std::size_t N>
 typename FFT<T, N>::TimeVector FFT<T, N>::inverse(const FreqVector &freq)
 {
-    TimeVector out(N);
+    TimeVector out = createTimeVector();
     inverse(freq.data(), out.data());
     return out;
+}
+
+template <typename T, std::size_t N>
+void FFT<T, N>::inverse(const FreqVector &freq, TimeVector &time)
+{
+    inverse(freq.data(), time.data());
 }
 
 template <typename T, std::size_t N> void FFT<T, N>::inverse(const FreqArray &freq, TimeArray &time)
