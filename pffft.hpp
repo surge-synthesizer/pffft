@@ -224,6 +224,7 @@ template <typename T, std::size_t N> FFT<T, N>::FFT(bool use_stack)
         }
         work_ = new (std::align_val_t(alignment)) T[amount];
     }
+    setup_ = pffft_new_setup(N, FftType);
 }
 
 template <typename T, std::size_t N> FFT<T, N>::~FFT()
