@@ -65,8 +65,8 @@ TEST_CASE("Sine", "Sine Wave Wrapper Equivalence")
     }
 
     // Exercise the array and ensure they all come to the same value.
-    FFT::TimeArray timeA;
-    FFT::FreqArray freqA;
+    alignas(16) FFT::TimeArray timeA;
+    alignas(16) FFT::FreqArray freqA;
     std::copy(time.begin(), time.end(), timeA.begin());
     fft.forward(timeA, freqA);
     fft.scale(freqA);
