@@ -216,6 +216,7 @@ template <typename T, std::size_t N> class FFT
     void scale(Complex *freq) const;
 
   private:
+    const internal::aligned_allocator<float, alignment> aligned_float_allocator_;
     float *work_{nullptr};
     internal::PFFFT_Setup *setup_{nullptr};
 };
@@ -224,7 +225,9 @@ template <typename T, std::size_t N> FFT<T, N>::FFT(bool use_stack)
 {
     if (!use_stack)
     {
-        work_ = new (std::align_val_t(alignment)) float[spectrum_size * 2];
+        // We use the aligned_allocator to create and destroy the work array, instead of the regular
+        // aligned new[], because of a bug on MSVC (compiler error C2956). This works around it.
+        work_ = aligned_float_allocator_.allocate(spectrum_size * 2);
     }
     setup_ = pffft_new_setup(N, FftType);
 }
@@ -233,7 +236,7 @@ template <typename T, std::size_t N> FFT<T, N>::~FFT()
 {
     if (work_)
     {
-        ::operator delete[](work_, std::align_val_t(alignment));
+        aligned_float_allocator_.deallocate(work_, spectrum_size * 2);
     }
     pffft_destroy_setup(setup_);
 }
