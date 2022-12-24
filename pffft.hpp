@@ -3,6 +3,7 @@
 // arrays. For the tl;dr of how to use it, scroll down to the "FFT" class.
 #pragma once
 
+#include <array>
 #include <complex>
 #include <cstdint>
 #include <exception>
