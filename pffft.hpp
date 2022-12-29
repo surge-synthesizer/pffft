@@ -3,7 +3,9 @@
 // arrays. For the tl;dr of how to use it, scroll down to the "FFT" class.
 #pragma once
 
+#include <array>
 #include <complex>
+#include <cstdint>
 #include <exception>
 #include <memory>
 #include <new>
@@ -23,14 +25,8 @@ static constexpr bool IsPowerOfTwo(size_t x) { return x && (x & (x - 1)) == 0; }
 // Utility function to check whether a given pointer is aligned on the given boundary.
 template <typename T> inline bool is_aligned(T *ptr, std::size_t alignment)
 {
-    std::uintptr_t orig = static_cast<uintptr_t>(ptr);
-    std::size_t space = sizeof(T);
-    void *result = std::align(alignment, sizeof(T), &ptr, &space);
-    if (orig != static_cast<std::uintptr_t>(ptr) || result == nullptr)
-    {
-        return false;
-    }
-    return true;
+    std::uintptr_t orig = reinterpret_cast<std::uintptr_t>(ptr);
+    return !(orig % alignment);
 }
 
 // Aligned allocator. Taken from the Seqan3 library, licensed under BSD 3-clause.
@@ -156,7 +152,7 @@ template <typename T, std::size_t N> class FFT
     typedef std::complex<float> Complex;
 
     using TimeArray = std::array<T, N>;
-    using FreqArray = std::array<T, spectrum_size>;
+    using FreqArray = std::array<Complex, spectrum_size>;
     using TimeVector = AlignedVector<T>;
     using FreqVector = AlignedVector<Complex>;
 
@@ -318,8 +314,8 @@ template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq
         throw std::invalid_argument("output not aligned");
     }
 
-    internal::pffft_transform_ordered(setup_, reinterpret_cast<const float *>(time),
-                                      reinterpret_cast<float const*>(freq), work_,
+    internal::pffft_transform_ordered(setup_, reinterpret_cast<const float *>(freq),
+                                      reinterpret_cast<float *>(time), work_,
                                       internal::PFFFT_BACKWARD);
 }
 
