@@ -216,8 +216,8 @@ template <typename T, std::size_t N> class FFT
     void scale(Complex *freq) const;
 
   private:
-    float *const work_ = nullptr;
-    internal::PFFFT_Setup *setup_;
+    float *work_{nullptr};
+    internal::PFFFT_Setup *setup_{nullptr};
 };
 
 template <typename T, std::size_t N> FFT<T, N>::FFT(bool use_stack)
@@ -316,7 +316,7 @@ template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq
     }
 
     internal::pffft_transform_ordered(setup_, reinterpret_cast<const float *>(time),
-                                      reinterpret_cast<float *>(freq), work_,
+                                      reinterpret_cast<float const*>(freq), work_,
                                       internal::PFFFT_BACKWARD);
 }
 
