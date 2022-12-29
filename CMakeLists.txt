@@ -9,6 +9,10 @@ add_library(${PROJECT_NAME} pffft.c pffft.h pffft.hpp)
 add_library(surge::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 
+if (WIN32)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC _USE_MATH_DEFINES)
+endif()
+
 if (${SURGE_PFFFT_BUILD_TESTS})
     add_subdirectory(src-test)
 endif()
