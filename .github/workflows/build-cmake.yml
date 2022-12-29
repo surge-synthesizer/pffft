@@ -30,4 +30,4 @@ jobs:
 
       - name: Run Tests
         shell: bash
-        run: ./build/surge-pffft-tests
+        run: ./build/src-test/surge-pffft-tests
