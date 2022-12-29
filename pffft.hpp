@@ -216,7 +216,12 @@ template <typename T, std::size_t N> class FFT
     void scale(Complex *freq) const;
 
   private:
-    float *work_{nullptr};
+    struct alignas(alignment) workS
+    {
+       float d[spectrum_size * 2];
+    };
+    //float *work_{nullptr};
+    workS *work_{nullptr};
     internal::PFFFT_Setup *setup_{nullptr};
 };
 
@@ -224,7 +229,8 @@ template <typename T, std::size_t N> FFT<T, N>::FFT(bool use_stack)
 {
     if (!use_stack)
     {
-        work_ = new (std::align_val_t(alignment)) float[spectrum_size * 2];
+        //work_ = new (std::align_val_t(alignment)) float[spectrum_size * 2];
+        work_ = new workS;
     }
     setup_ = pffft_new_setup(N, FftType);
 }
@@ -233,7 +239,8 @@ template <typename T, std::size_t N> FFT<T, N>::~FFT()
 {
     if (work_)
     {
-        ::operator delete[](work_, std::align_val_t(alignment));
+        //::operator delete[](work_, std::align_val_t(alignment));
+        delete work_;
     }
     pffft_destroy_setup(setup_);
 }
@@ -281,7 +288,7 @@ template <typename T, std::size_t N> void FFT<T, N>::forward(const T *time, Comp
     }
 
     internal::pffft_transform_ordered(setup_, reinterpret_cast<const float *>(time),
-                                      reinterpret_cast<float *>(freq), work_,
+                                      reinterpret_cast<float *>(freq), work_?work_->d:nullptr,
                                       internal::PFFFT_FORWARD);
 }
 
@@ -316,7 +323,7 @@ template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq
     }
 
     internal::pffft_transform_ordered(setup_, reinterpret_cast<const float *>(time),
-                                      reinterpret_cast<float const*>(freq), work_,
+                                      reinterpret_cast<float const*>(freq), work_?work_->d: nullptr,
                                       internal::PFFFT_BACKWARD);
 }
 
