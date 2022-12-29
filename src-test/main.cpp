@@ -1,8 +1,3 @@
-//
-// Created by Paul Walker on 12/29/22.
-//
-
-
 #define CATCH_CONFIG_RUNNER
 #include "catch2.hpp"
 
