@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false # show all errors for each platform (vs. cancel jobs on error)
       matrix:
-        os: [ubuntu-latest, windows-2019, macOS-latest]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
 
     steps:
       - name: Get latest CMake
@@ -28,6 +28,13 @@ jobs:
         shell: bash
         run: cmake --build build --config Release --parallel 4 --target surge-pffft-tests
 
-      - name: Run Tests
+      - name: Run Tests (win)
         shell: bash
+        if: matrix.os == 'windows-latest'
+        run: ./build/src-test/Release/surge-pffft-tests.exe
+
+
+      - name: Run Tests (non win)
+        shell: bash
+        if: matrix.os != 'windows-latest'
         run: ./build/src-test/surge-pffft-tests
