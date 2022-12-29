@@ -3,7 +3,7 @@ name: Surge-PFFFT-Test
 on:
   pull_request:
     branches:
-      - surge
+      - surge, main
   workflow_dispatch:
 
 jobs:
