@@ -6,7 +6,8 @@ This is a Surge fork of PFFFT, which is originally found [here](https://bitbucke
 
 The fork is to allow for some easier development, like applying
 some patches to deal with compiler warnings, creating a C++ wrapper,
-or implementing support for the SIMDE library.
+or implementing support for the SIMDE library. It also contains a set of tests
+in the src-test directory.
 
 The remainder of the original PFFFT README follows.
 
