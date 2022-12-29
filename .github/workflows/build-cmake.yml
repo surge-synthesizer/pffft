@@ -31,7 +31,7 @@ jobs:
       - name: Run Tests (win)
         shell: bash
         if: matrix.os == 'windows-latest'
-        run: ./build/src-test/surge-pffft-tests.exe
+        run: ./build/src-test/Release/surge-pffft-tests.exe
 
 
       - name: Run Tests (non win)
