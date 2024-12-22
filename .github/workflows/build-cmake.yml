@@ -9,7 +9,42 @@ jobs:
     strategy:
       fail-fast: false # show all errors for each platform (vs. cancel jobs on error)
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        include:
+          - os: ubuntu-latest
+            name: linux
+            runTest: true
+            testExe: ./build/src-test/surge-pffft-tests
+            
+          - os: macos-latest
+            name: mac-x86
+            runTest: true
+            testExe: ./build/src-test/surge-pffft-tests
+            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=x86_64
+
+          - os: macos-latest
+            name: mac-arm
+            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=arm64
+
+          - os: macos-latest
+            name: mac-arm-nonative
+            cmakeArgs: -DCMAKE_OSX_ARCHITECTURES=arm64
+
+          - os: windows-latest
+            name: win-x86
+            runTest: true
+            testExe: ./build/src-test/Release/surge-pffft-tests.exe
+
+          - os: windows-latest
+            name: win-arm64
+            cmakeArgs: -G"Visual Studio 17 2022" -A arm64 -DCMAKE_SYSTEM_VERSION=10
+
+          - os: windows-latest
+            name: win-arm64ec
+            cmakeArgs: -G"Visual Studio 17 2022" -A arm64ec -DCMAKE_SYSTEM_VERSION=10
+
+          - os: windows-latest
+            name: win-arm64-non-native
+            cmakeArgs: -G"Visual Studio 17 2022" -A arm64 -DCMAKE_SYSTEM_VERSION=10
 
     steps:
       - name: Get latest CMake
@@ -20,21 +55,13 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Configure
-        shell: bash
-        run: cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -DSURGE_PFFFT_BUILD_TESTS=TRUE
-
       - name: Build
-        shell: bash
-        run: cmake --build build --config Release --parallel 4 --target surge-pffft-tests
+        run: |
+          cmake -Bbuild -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmakeArgs }} -DSURGE_PFFFT_BUILD_TESTS=TRUE
+          cmake --build build --config Release --parallel 4 --target surge-pffft-tests
 
-      - name: Run Tests (win)
-        shell: bash
-        if: matrix.os == 'windows-latest'
-        run: ./build/src-test/Release/surge-pffft-tests.exe
-
-
-      - name: Run Tests (non win)
-        shell: bash
-        if: matrix.os != 'windows-latest'
-        run: ./build/src-test/surge-pffft-tests
+      - name: Run Tests
+        if: ${{ matrix.runTest }}
+        run: |
+          ls ${{ matrix.testExe }}
+          ${{ matrix.testExe }}
