@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(pffft VERSION 0.1 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 message(STATUS "Including local pffft")
 add_library(${PROJECT_NAME} pffft.c pffft.h pffft.hpp)
@@ -11,6 +11,7 @@ target_include_directories(${PROJECT_NAME} INTERFACE .)
 
 if (WIN32)
     target_compile_definitions(${PROJECT_NAME} PUBLIC _USE_MATH_DEFINES)
+    target_compile_options(${PROJECT_NAME} PUBLIC /Zc:__cplusplus)
 endif()
 
 if (${SURGE_PFFFT_BUILD_TESTS})
