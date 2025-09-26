@@ -11,6 +11,9 @@ target_include_directories(${PROJECT_NAME} INTERFACE .)
 
 if (WIN32)
     target_compile_definitions(${PROJECT_NAME} PUBLIC _USE_MATH_DEFINES)
+endif()
+
+if (MSVC)
     target_compile_options(${PROJECT_NAME} PUBLIC /Zc:__cplusplus)
 endif()
 
