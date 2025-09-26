@@ -9,8 +9,11 @@ add_library(${PROJECT_NAME} pffft.c pffft.h pffft.hpp)
 add_library(surge::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 
-if (MSVC)
+if (WIN32)
     target_compile_definitions(${PROJECT_NAME} PUBLIC _USE_MATH_DEFINES)
+endif()
+
+if (MSVC)
     target_compile_options(${PROJECT_NAME} PUBLIC /Zc:__cplusplus)
 endif()
 
