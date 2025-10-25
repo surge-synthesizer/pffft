@@ -9,6 +9,7 @@
 #include <exception>
 #include <memory>
 #include <new>
+#include <span>
 #include <vector>
 #include <type_traits>
 
@@ -187,10 +188,10 @@ template <typename T, std::size_t N> class FFT
     // otherwise need to avoid heap allocations, use the array API instead. The array API will throw
     // if the input and output pointers are improperly aligned.
     FreqVector forward(const TimeVector &time);
-    // Alternate vector API for use with preallocated vectors.
-    void forward(const TimeVector &time, FreqVector &freq);
-    // Array API.
-    void forward(const TimeArray &time, FreqArray &freq);
+    // Alternate API to use with preallocated storage, such as that created by this class or
+    // existing arrays. The time span must have N elements, and the freq span must have
+    // spectrum_size elements.
+    void forward(std::span<const T> time, std::span<Complex> freq);
     // Raw pointer API. time must have N elements, and freq must have spectrum_size elements.
     void forward(const T *time, Complex *freq);
 
@@ -200,10 +201,10 @@ template <typename T, std::size_t N> class FFT
     // otherwise need to avoid heap allocations, use the array API instead. The array API will throw
     // if the input and output pointers are improperly aligned.
     TimeVector inverse(const FreqVector &freq);
-    // Alternate vector API for use with preallocated vectors.
-    void inverse(const FreqVector &freq, TimeVector &time);
-    // Array API.
-    void inverse(const FreqArray &freq, TimeArray &time);
+    // Alternate API to use with preallocated storage, such as that created by this class or
+    // existing arrays. The freq span must have spectrum_size elements, and the time span must have
+    // N elements.
+    void inverse(std::span<const Complex> freq, std::span<T> time);
     // Raw pointer API. freq must have spectrum_size elements, and time must have N elements.
     void inverse(const Complex *freq, T *time);
 
@@ -260,13 +261,12 @@ typename FFT<T, N>::FreqVector FFT<T, N>::forward(const TimeVector &time)
 }
 
 template <typename T, std::size_t N>
-void FFT<T, N>::forward(const TimeVector &time, FreqVector &freq)
+void FFT<T, N>::forward(const std::span<const T> time, std::span<Complex> freq)
 {
-    forward(time.data(), freq.data());
-}
-
-template <typename T, std::size_t N> void FFT<T, N>::forward(const TimeArray &time, FreqArray &freq)
-{
+    if (time.size() < N)
+        throw std::invalid_argument("time is not large enough");
+    if (freq.size() < spectrum_size)
+        throw std::invalid_argument("freq is not large enough");
     forward(time.data(), freq.data());
 }
 
@@ -295,13 +295,12 @@ typename FFT<T, N>::TimeVector FFT<T, N>::inverse(const FreqVector &freq)
 }
 
 template <typename T, std::size_t N>
-void FFT<T, N>::inverse(const FreqVector &freq, TimeVector &time)
+void FFT<T, N>::inverse(const std::span<const Complex> freq, std::span<T> time)
 {
-    inverse(freq.data(), time.data());
-}
-
-template <typename T, std::size_t N> void FFT<T, N>::inverse(const FreqArray &freq, TimeArray &time)
-{
+    if (time.size() < N)
+        throw std::invalid_argument("time is not large enough");
+    if (freq.size() < spectrum_size)
+        throw std::invalid_argument("freq is not large enough");
     inverse(freq.data(), time.data());
 }
 
