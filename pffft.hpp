@@ -3,8 +3,8 @@
 // arrays. For the tl;dr of how to use it, scroll down to the "FFT" class.
 #pragma once
 
-#include <array>
 #include <complex>
+#include <new>
 #include <span>
 #include <type_traits>
 
@@ -12,18 +12,21 @@
 
 static_assert(__cplusplus >= 202002L, "Surge team libraries have moved to C++ 20");
 
-namespace pffft {
+namespace pffft
+{
 
 // Class for performing a Fourier transform. This class is not thread safe; it uses a work array.
 // Different threads should have their own thread-local copy of the class.
+// To have a FFT size known at run time, set N to std::dynamic_extent.
 template <typename T, std::size_t N> class FFT
 {
     // Ensure we're either a float or complex<float>.
     static_assert(std::is_same_v<float, typename std::remove_cv<T>::type> ||
                       std::is_same_v<std::complex<float>, typename std::remove_cv<T>::type>,
                   "T parameter must be either float or std::complex<float>.");
-    // Ensure that the size is a power of two.
-    static_assert(internal::IsPowerOfTwo(N), "N parameter must be a power of two.");
+    // Ensure that the size is a power of two, or zero for dynamic size.
+    static_assert(internal::IsPowerOfTwo(N) || N == std::dynamic_extent,
+                  "N parameter must be a power of two.");
 
     // Sanity check for std::complex.
     static_assert(sizeof(std::complex<float>) == 2 * sizeof(float));
@@ -35,37 +38,60 @@ template <typename T, std::size_t N> class FFT
     static constexpr std::size_t alignment = 16;
     template <typename U> using AlignedVector = internal::AlignedVector<U, 64>;
 
-    // Helper for enumerating the spectrum size. Since the spectrum is a std::complex which
-    // is twice the size of a real, when T is real and not complex the spectrum type std::complex<T>
-    // needs to be half the size.
-    static constexpr std::size_t spectrum_size =
-        std::is_same_v<float, typename std::remove_cv<T>::type> ? N / 2 : N;
+    // Size of the time array for the FFT.
+    std::size_t size = N;
 
-    typedef internal::pffft_transform_t TransformType;
+    // Size of the frequency array for the FFT. Since the spectrum is a std::complex which is twice
+    // the size of a real, when T is real and not complex the spectrum type std::complex<T> needs to
+    // be half the size.
+    std::size_t spectrum_size =
+        (N == std::dynamic_extent
+             ? N
+             : (std::is_same_v<float, typename std::remove_cv<T>::type> ? N / 2 : N));
+
     typedef float Real;
     typedef std::complex<float> Complex;
 
-    using TimeArray = std::array<T, N>;
-    using FreqArray = std::array<Complex, spectrum_size>;
+    using Time = T;
+    using Frequency = Complex;
+
+    // Helper types for specifying correctly-sized arrays. Use these if you want to create the
+    // correct array sizes for the FFT.
+    static constexpr std::size_t kConstSize = N;
+    static constexpr std::size_t kConstSpectrumSize =
+        std::is_same_v<float, typename std::remove_cv<T>::type> ? N / 2 : N;
+    using TimeArray = std::conditional_t<N != std::dynamic_extent, std::array<T, N>, void>;
+    using FreqArray =
+        std::conditional_t<N != std::dynamic_extent, std::array<Complex, kConstSpectrumSize>, void>;
+
+    // Helper types for specifying aligned vectors. Use these if you want to create vectors at
+    // runtime for the FFT.
     using TimeVector = AlignedVector<T>;
     using FreqVector = AlignedVector<Complex>;
-
-    static constexpr TransformType FftType{
-        std::is_same_v<std::complex<float>, typename std::remove_cv<T>::type>
-            ? internal::PFFFT_COMPLEX
-            : internal::PFFFT_REAL};
 
     // The use_stack parameter explicitly tells the class whether to allocate the work array on the
     // stack or the heap. For small transforms (N < 16384 or so), stack can be faster. However,
     // threads can have small stacks, so it doesn't hurt to use the heap instead if you're
-    // concerned. No allocation is performed except during construction time, so even if it uses the
-    // heap you don't need to worry about allocations during the operation.
-    explicit FFT(bool use_stack = false);
+    // concerned. No allocation is performed except during construction time and in resize(), so
+    // even if it uses the heap you don't need to worry about allocations during the operation.
+    explicit FFT(bool use_stack = false)
+        requires(N != std::dynamic_extent);
+    // Constructor when N = std::dynamic_extent.
+    FFT(std::size_t size, bool use_stack = false)
+    requires(N == std::dynamic_extent);
     ~FFT();
 
-    // Functions to provide pre-allocated vectors in the exactly correct sizes for the FFT.
+    // Change the FFT size. Only usable when N = std::dynamic_extent.
+    void resize(std::size_t size)
+        requires(N == std::dynamic_extent);
+
+    // Functions to provide pre-allocated vectors in the exactly correct sizes for the FFT. This
+    // will cause an allocation, so don't use it if that's bad for you.
     TimeVector createTimeVector() const;
     FreqVector createFreqVector() const;
+    // As above, but arrays.
+    std::unique_ptr<T[]> createTimeArray() const;
+    std::unique_ptr<Complex[]> createFreqArray() const;
 
     // Perform a Fourier transform.
     // Output is in canonical form, AKA the familiar array of interleaved complex numbers:
@@ -100,19 +126,32 @@ template <typename T, std::size_t N> class FFT
     void inverse(const Complex *freq, T *time);
 
     // Helper methods for scaling the output of the forward transform.
-    void scale(FreqVector &freq) const;
-    void scale(FreqArray &freq) const;
-    // freq must have spectrum_size elements.
-    void scale(Complex *freq) const;
+    void scale(std::span<Complex> freq) const;
 
   private:
+    typedef internal::pffft_transform_t TransformType;
+
+    static constexpr TransformType FftType{
+        std::is_same_v<std::complex<float>, typename std::remove_cv<T>::type>
+            ? internal::PFFFT_COMPLEX
+            : internal::PFFFT_REAL};
+
     const internal::aligned_allocator<float, alignment> aligned_float_allocator_;
+    bool use_stack_{false};
     float *work_{nullptr};
     internal::PFFFT_Setup *setup_{nullptr};
+
+    // Disable assignment and copy.
+    FFT(const FFT<T, N> &fft) = delete;
+    FFT<T, N> operator=(const FFT<T, N> &fft) = delete;
 };
 
-template <typename T, std::size_t N> FFT<T, N>::FFT(bool use_stack)
+template <typename T, std::size_t N>
+FFT<T, N>::FFT(bool use_stack)
+    requires(N != std::dynamic_extent)
 {
+    use_stack_ = use_stack;
+
     if (!use_stack)
     {
         // We use the aligned_allocator to create and destroy the work array, instead of the regular
@@ -120,6 +159,14 @@ template <typename T, std::size_t N> FFT<T, N>::FFT(bool use_stack)
         work_ = aligned_float_allocator_.allocate(spectrum_size * 2);
     }
     setup_ = pffft_new_setup(N, FftType);
+}
+
+template <typename T, std::size_t N>
+FFT<T, N>::FFT(std::size_t size, bool use_stack)
+    requires(N == std::dynamic_extent)
+{
+    use_stack_ = use_stack;
+    resize(size);
 }
 
 template <typename T, std::size_t N> FFT<T, N>::~FFT()
@@ -132,15 +179,55 @@ template <typename T, std::size_t N> FFT<T, N>::~FFT()
 }
 
 template <typename T, std::size_t N>
+void FFT<T, N>::resize(std::size_t size)
+    requires(N == std::dynamic_extent)
+{
+    if (!internal::IsPowerOfTwo(size))
+        throw std::invalid_argument("size must be a power of two");
+
+    if (setup_)
+        pffft_destroy_setup(setup_);
+
+    this->size = size;
+    this->spectrum_size = std::is_same_v<float, typename std::remove_cv<T>::type> ? size / 2 : size;
+
+    if (!use_stack_)
+    {
+        // We use the aligned_allocator to create and destroy the work array, instead of the regular
+        // aligned new[], because of a bug on MSVC (compiler error C2956). This works around it.
+        work_ = aligned_float_allocator_.allocate(spectrum_size * 2);
+    }
+    setup_ = pffft_new_setup(size, FftType);
+}
+
+template <typename T, std::size_t N>
 typename FFT<T, N>::TimeVector FFT<T, N>::createTimeVector() const
 {
-    return TimeVector(N);
+    if constexpr (N != std::dynamic_extent)
+        return TimeVector(N);
+    else
+        return TimeVector(size);
 }
 
 template <typename T, std::size_t N>
 typename FFT<T, N>::FreqVector FFT<T, N>::createFreqVector() const
 {
-    return FreqVector(spectrum_size);
+    if constexpr (N != std::dynamic_extent)
+        return FreqVector(kConstSpectrumSize);
+    else
+        return FreqVector(spectrum_size);
+}
+
+template <typename T, std::size_t N> std::unique_ptr<T[]> FFT<T, N>::createTimeArray() const
+{
+    return std::unique_ptr<T[]>(new (static_cast<std::align_val_t>(alignment)) T[size]);
+}
+
+template <typename T, std::size_t N>
+std::unique_ptr<typename FFT<T, N>::Complex[]> FFT<T, N>::createFreqArray() const
+{
+    return std::unique_ptr<Complex[]>(new (static_cast<std::align_val_t>(alignment))
+                                          Complex[spectrum_size]);
 }
 
 template <typename T, std::size_t N>
@@ -154,7 +241,7 @@ typename FFT<T, N>::FreqVector FFT<T, N>::forward(const TimeVector &time)
 template <typename T, std::size_t N>
 void FFT<T, N>::forward(const std::span<const T> time, std::span<Complex> freq)
 {
-    if (time.size() < N)
+    if (time.size() < size)
         throw std::invalid_argument("time is not large enough");
     if (freq.size() < spectrum_size)
         throw std::invalid_argument("freq is not large enough");
@@ -188,7 +275,7 @@ typename FFT<T, N>::TimeVector FFT<T, N>::inverse(const FreqVector &freq)
 template <typename T, std::size_t N>
 void FFT<T, N>::inverse(const std::span<const Complex> freq, std::span<T> time)
 {
-    if (time.size() < N)
+    if (time.size() < size)
         throw std::invalid_argument("time is not large enough");
     if (freq.size() < spectrum_size)
         throw std::invalid_argument("freq is not large enough");
@@ -211,21 +298,11 @@ template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq
                                       internal::PFFFT_BACKWARD);
 }
 
-template <typename T, std::size_t N> void FFT<T, N>::scale(FreqVector &freq) const
+template <typename T, std::size_t N> void FFT<T, N>::scale(std::span<Complex> freq) const
 {
-    scale(freq.data());
-}
-
-template <typename T, std::size_t N> void FFT<T, N>::scale(FreqArray &freq) const
-{
-    scale(freq.data());
-}
-
-template <typename T, std::size_t N> void FFT<T, N>::scale(Complex *freq) const
-{
-    for (std::size_t i = 0; i < spectrum_size; i++)
+    for (Complex &f : freq)
     {
-        freq[i] /= N;
+        f /= static_cast<Real>(size);
     }
 }
 
