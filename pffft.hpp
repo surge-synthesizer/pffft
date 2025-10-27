@@ -27,6 +27,8 @@ template <typename T, std::size_t N> class FFT
     // Ensure that the size is a power of two, or zero for dynamic size.
     static_assert(internal::IsPowerOfTwo(N) || N == std::dynamic_extent,
                   "N parameter must be a power of two.");
+    // pffft demands size of at least 32.
+    static_assert(N >= 32, "N must be at least 32.");
 
     // Sanity check for std::complex.
     static_assert(sizeof(std::complex<float>) == 2 * sizeof(float));
@@ -184,6 +186,8 @@ void FFT<T, N>::resize(std::size_t size)
 {
     if (!internal::IsPowerOfTwo(size))
         throw std::invalid_argument("size must be a power of two");
+    if (N < 32)
+        throw std::invalid_argument("size must be at least 32");
 
     if (setup_)
         pffft_destroy_setup(setup_);
