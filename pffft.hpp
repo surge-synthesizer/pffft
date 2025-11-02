@@ -221,6 +221,8 @@ void FFT<T, N>::resize(std::size_t size)
     if (N < 32)
         throw std::invalid_argument("size must be at least 32");
 
+    if (work_)
+        aligned_float_allocator_.deallocate(work_, spectrum_size * 2);
     if (setup_)
         pffft_destroy_setup(setup_);
 
