@@ -70,6 +70,8 @@ template <typename T, std::size_t N> class FFT
     // runtime for the FFT.
     using TimeVector = AlignedVector<T>;
     using FreqVector = AlignedVector<Complex>;
+    using UnorderedTimeVector = AlignedVector<float>;
+    using UnorderedFreqVector = AlignedVector<float>;
 
     // The use_stack parameter explicitly tells the class whether to allocate the work array on the
     // stack or the heap. For small transforms (N < 16384 or so), stack can be faster. However,
@@ -91,6 +93,8 @@ template <typename T, std::size_t N> class FFT
     // will cause an allocation, so don't use it if that's bad for you.
     TimeVector createTimeVector() const;
     FreqVector createFreqVector() const;
+    UnorderedTimeVector createUnorderedTimeVector() const;
+    UnorderedFreqVector createUnorderedFreqVector() const;
     // As above, but arrays.
     std::unique_ptr<T[]> createTimeArray() const;
     std::unique_ptr<Complex[]> createFreqArray() const;
@@ -127,8 +131,36 @@ template <typename T, std::size_t N> class FFT
     // Raw pointer API. freq must have spectrum_size elements, and time must have N elements.
     void inverse(const Complex *freq, T *time);
 
+    // "Unordered" API. In these functions, the z-domain data is stored in the
+    // most efficient order for transforming it back, or using it for
+    // convolution. No extra work is done reordering it back to interleaved
+    // complex numbers, like with the regular forward().
+    //
+    // In this case, freq.size() must be equal to spectrum_size * 2, since
+    // we aren't storing them as std::complex<float>, halving the size. If
+    // that confuses you, use createUnorderedTimeArray() and
+    // createUnorderedFreqArray() and don't worry about it.
+    void forward_unordered(std::span<T> time, std::span<float> freq);
+    void inverse_unordered(std::span<float> freq, std::span<T> time);
+
+    // Perform a multiplication of the frequency components of dft_a and
+    // dft_b and accumulate them into dft_ab. The arrays should have
+    // been obtained with forward_unordered() (otherwise just perform the
+    // operation yourself as the dft coefficients come out as regular
+    // std::complex<float> values).
+    //
+    // The operation performed is: dft_ab += (dft_a * fdt_b)*scale
+    void zconvolve_accumulate(std::span<float> dft_a, std::span<float> dft_b,
+                              std::span<float> dft_ab, float scale);
+    // Convenience method if you're treating a FreqVector or other typed Complex
+    // array source as an un-interleaved float array. Note that the actual
+    // values that end up here will not be correct complex numbers.
+    void zconvolve_accumulate(std::span<Complex> dft_a, std::span<Complex> dft_b,
+                              std::span<Complex> dft_ab, float scale);
+
     // Helper methods for scaling the output of the forward transform.
     void scale(std::span<Complex> freq) const;
+    void scale_unordered(std::span<float> freq) const;
 
   private:
     typedef internal::pffft_transform_t TransformType;
@@ -222,6 +254,26 @@ typename FFT<T, N>::FreqVector FFT<T, N>::createFreqVector() const
         return FreqVector(spectrum_size);
 }
 
+template <typename T, std::size_t N>
+typename FFT<T, N>::UnorderedTimeVector FFT<T, N>::createUnorderedTimeVector() const
+{
+    constexpr int M = std::is_same_v<float, typename std::remove_cv<T>::type> ? 1 : 2;
+    if constexpr (N != std::dynamic_extent)
+        return UnorderedTimeVector(N * M);
+    else
+        return UnorderedTimeVector(size * M);
+}
+
+template <typename T, std::size_t N>
+typename FFT<T, N>::UnorderedFreqVector FFT<T, N>::createUnorderedFreqVector() const
+{
+    constexpr int M = std::is_same_v<float, typename std::remove_cv<T>::type> ? 1 : 2;
+    if constexpr (N != std::dynamic_extent)
+        return UnorderedFreqVector(N * M);
+    else
+        return UnorderedFreqVector(size * M);
+}
+
 template <typename T, std::size_t N> std::unique_ptr<T[]> FFT<T, N>::createTimeArray() const
 {
     return std::unique_ptr<T[]>(new (static_cast<std::align_val_t>(alignment)) T[size]);
@@ -302,11 +354,70 @@ template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq
                                       internal::PFFFT_BACKWARD);
 }
 
+template <typename T, std::size_t N>
+void FFT<T, N>::forward_unordered(const std::span<T> time, std::span<float> freq)
+{
+    if (time.size() < size)
+        throw std::invalid_argument("time is not large enough");
+    if (freq.size() < spectrum_size * 2)
+        throw std::invalid_argument("freq is not large enough");
+    internal::pffft_transform(setup_, reinterpret_cast<const float *>(time.data()), freq.data(),
+                              work_, internal::PFFFT_FORWARD);
+}
+
+template <typename T, std::size_t N>
+void FFT<T, N>::inverse_unordered(const std::span<float> freq, std::span<T> time)
+{
+    if (time.size() < size)
+        throw std::invalid_argument("time is not large enough");
+    if (freq.size() < spectrum_size * 2)
+        throw std::invalid_argument("freq is not large enough");
+    internal::pffft_transform(setup_, freq.data(), reinterpret_cast<float *>(time.data()), work_,
+                              internal::PFFFT_BACKWARD);
+}
+
+template <typename T, std::size_t N>
+void FFT<T, N>::zconvolve_accumulate(const std::span<float> dftA, const std::span<float> dftB,
+                                     std::span<float> dftAB, float scale)
+{
+    if (dftA.size() < spectrum_size * 2) [[unlikely]]
+        throw std::invalid_argument("dftA is not large enough");
+    if (dftB.size() < spectrum_size * 2) [[unlikely]]
+        throw std::invalid_argument("dftB is not large enough");
+    if (dftAB.size() < spectrum_size * 2) [[unlikely]]
+        throw std::invalid_argument("dftAB is not large enough");
+    internal::pffft_zconvolve_accumulate(setup_, dftA.data(), dftB.data(), dftAB.data(), scale);
+}
+
+template <typename T, std::size_t N>
+void FFT<T, N>::zconvolve_accumulate(const std::span<Complex> dftA, const std::span<Complex> dftB,
+                                     std::span<Complex> dftAB, float scale)
+{
+    if (dftA.size() < spectrum_size) [[unlikely]]
+        throw std::invalid_argument("dftA is not large enough");
+    if (dftB.size() < spectrum_size) [[unlikely]]
+        throw std::invalid_argument("dftB is not large enough");
+    if (dftAB.size() < spectrum_size) [[unlikely]]
+        throw std::invalid_argument("dftAB is not large enough");
+    float *a = reinterpret_cast<float *>(dftA.data());
+    float *b = reinterpret_cast<float *>(dftB.data());
+    float *ab = reinterpret_cast<float *>(dftAB.data());
+    internal::pffft_zconvolve_accumulate(setup_, a, b, ab, scale);
+}
+
 template <typename T, std::size_t N> void FFT<T, N>::scale(std::span<Complex> freq) const
 {
     for (Complex &f : freq)
     {
         f /= static_cast<Real>(size);
+    }
+}
+
+template <typename T, std::size_t N> void FFT<T, N>::scale_unordered(std::span<float> freq) const
+{
+    for (float &f : freq)
+    {
+        f /= static_cast<float>(size);
     }
 }
 
