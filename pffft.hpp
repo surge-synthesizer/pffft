@@ -297,20 +297,20 @@ typename FFT<T, N>::FreqVector FFT<T, N>::forward(const TimeVector &time)
 template <typename T, std::size_t N>
 void FFT<T, N>::forward(const std::span<const T> time, std::span<Complex> freq)
 {
-    if (time.size() < size)
+    if (time.size() < size) [[unlikely]]
         throw std::invalid_argument("time is not large enough");
-    if (freq.size() < spectrum_size)
+    if (freq.size() < spectrum_size) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
     forward(time.data(), freq.data());
 }
 
 template <typename T, std::size_t N> void FFT<T, N>::forward(const T *time, Complex *freq)
 {
-    if (!internal::is_aligned(time, alignment))
+    if (!internal::is_aligned(time, alignment)) [[unlikely]]
     {
         throw std::invalid_argument("input not aligned");
     }
-    if (!internal::is_aligned(freq, alignment))
+    if (!internal::is_aligned(freq, alignment)) [[unlikely]]
     {
         throw std::invalid_argument("output not aligned");
     }
@@ -331,20 +331,20 @@ typename FFT<T, N>::TimeVector FFT<T, N>::inverse(const FreqVector &freq)
 template <typename T, std::size_t N>
 void FFT<T, N>::inverse(const std::span<const Complex> freq, std::span<T> time)
 {
-    if (time.size() < size)
+    if (time.size() < size) [[unlikely]]
         throw std::invalid_argument("time is not large enough");
-    if (freq.size() < spectrum_size)
+    if (freq.size() < spectrum_size) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
     inverse(freq.data(), time.data());
 }
 
 template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq, T *time)
 {
-    if (!internal::is_aligned(time, alignment))
+    if (!internal::is_aligned(time, alignment)) [[unlikely]]
     {
         throw std::invalid_argument("input not aligned");
     }
-    if (!internal::is_aligned(freq, alignment))
+    if (!internal::is_aligned(freq, alignment)) [[unlikely]]
     {
         throw std::invalid_argument("output not aligned");
     }
@@ -357,9 +357,9 @@ template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq
 template <typename T, std::size_t N>
 void FFT<T, N>::forward_unordered(const std::span<T> time, std::span<float> freq)
 {
-    if (time.size() < size)
+    if (time.size() < size) [[unlikely]]
         throw std::invalid_argument("time is not large enough");
-    if (freq.size() < spectrum_size * 2)
+    if (freq.size() < spectrum_size * 2) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
     internal::pffft_transform(setup_, reinterpret_cast<const float *>(time.data()), freq.data(),
                               work_, internal::PFFFT_FORWARD);
@@ -368,9 +368,9 @@ void FFT<T, N>::forward_unordered(const std::span<T> time, std::span<float> freq
 template <typename T, std::size_t N>
 void FFT<T, N>::inverse_unordered(const std::span<float> freq, std::span<T> time)
 {
-    if (time.size() < size)
+    if (time.size() < size) [[unlikely]]
         throw std::invalid_argument("time is not large enough");
-    if (freq.size() < spectrum_size * 2)
+    if (freq.size() < spectrum_size * 2) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
     internal::pffft_transform(setup_, freq.data(), reinterpret_cast<float *>(time.data()), work_,
                               internal::PFFFT_BACKWARD);
