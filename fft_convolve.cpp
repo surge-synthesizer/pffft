@@ -23,18 +23,22 @@
 #include "fft_convolve.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <functional>
 
 namespace pffft
 {
 
+//
+// One-stage FFT Convolver
+// -----------------------
 Convolver::Convolver() : fft_(32, false) { reset(); }
 
 bool Convolver::init(std::size_t blockSize, std::span<float> ir)
 {
     reset();
 
-    if (blockSize == 0)
+    if (blockSize < 16)
         return false;
 
     if (ir.size() == 0) // process() will do nothing.
@@ -42,13 +46,6 @@ bool Convolver::init(std::size_t blockSize, std::span<float> ir)
 
     if (!pffft::internal::IsPowerOfTwo(blockSize))
         return false;
-
-    // FIXME TEMPORARY Ignore zeros at the end of the impulse response because they only waste
-    // computation time
-    while (ir.size() > 0 && ::fabs(ir[ir.size() - 1]) < 0.000001f)
-    {
-        ir = ir.first(ir.size() - 1);
-    }
 
     blockSize_ = blockSize;
     segSize_ = 2 * blockSize;
@@ -167,6 +164,172 @@ void Convolver::reset()
     preMultiplied_.clear();
     conv_.clear();
     overlap_.clear();
+}
+
+//
+// Two-stage FFT Convolver
+// -----------------------
+TwoStageConvolver::TwoStageConvolver() = default;
+
+void TwoStageConvolver::reset()
+{
+    headBlockSize_ = 0;
+    tailBlockSize_ = 0;
+    headConvolver_.reset();
+    tailConvolver0_.reset();
+    tailOutput0_.clear();
+    tailPrecalculated0_.clear();
+    tailConvolver_.reset();
+    tailOutput_.clear();
+    tailPrecalculated_.clear();
+    tailInput_.clear();
+    tailInputFill_ = 0;
+    precalculatedPos_ = 0;
+    backgroundProcessingInput_.clear();
+}
+
+bool TwoStageConvolver::init(std::size_t headBlockSize, std::size_t tailBlockSize,
+                             std::span<float> ir)
+{
+    reset();
+
+    if (headBlockSize < 16 || tailBlockSize < 16)
+    {
+        return false;
+    }
+
+    headBlockSize = std::max(static_cast<std::size_t>(16), headBlockSize);
+    if (headBlockSize > tailBlockSize)
+    {
+        assert(false);
+        std::swap(headBlockSize, tailBlockSize);
+    }
+
+    if (ir.empty())
+    {
+        return true;
+    }
+
+    if (!pffft::internal::IsPowerOfTwo(headBlockSize))
+        return false;
+    if (!pffft::internal::IsPowerOfTwo(tailBlockSize))
+        return false;
+
+    const auto head_ir = ir.first(std::min(ir.size(), tailBlockSize_));
+    headConvolver_.init(headBlockSize_, head_ir);
+
+    if (ir.size() > tailBlockSize_)
+    {
+        const auto tail_ir_0 =
+            ir.subspan(tailBlockSize_, std::min(ir.size() - tailBlockSize_, tailBlockSize_));
+        tailConvolver0_.init(headBlockSize_, tail_ir_0);
+        tailOutput0_.resize(tailBlockSize_);
+        tailPrecalculated0_.resize(tailBlockSize_);
+    }
+
+    if (ir.size() > 2 * tailBlockSize_)
+    {
+        const auto tail_ir = ir.subspan(2 * tailBlockSize_);
+        tailConvolver_.init(tailBlockSize_, tail_ir);
+        tailOutput_.resize(tailBlockSize_);
+        tailPrecalculated_.resize(tailBlockSize_);
+        backgroundProcessingInput_.resize(tailBlockSize_);
+    }
+
+    if (!tailPrecalculated0_.empty() || !tailPrecalculated_.empty())
+    {
+        tailInput_.resize(tailBlockSize_);
+    }
+    tailInputFill_ = 0;
+    precalculatedPos_ = 0;
+
+    return true;
+}
+
+void TwoStageConvolver::process(std::span<float> input, std::span<float> output)
+{
+    // Head
+    headConvolver_.process(input, output);
+
+    // Tail
+    if (!tailInput_.empty())
+    {
+        std::size_t processed = 0;
+        while (processed < input.size())
+        {
+            const std::size_t remaining = input.size() - processed;
+            const std::size_t processing =
+                std::min(remaining, headBlockSize_ - (tailInputFill_ % headBlockSize_));
+            assert(tailInputFill_ + processing <= tailBlockSize_);
+
+            // Sum head and tail
+            const std::size_t sumBegin = processed;
+            const std::size_t sumEnd = processed + processing;
+            {
+                // Sum: 1st tail block
+                if (!tailPrecalculated0_.empty())
+                {
+                    std::size_t precalculatedPos = precalculatedPos_;
+                    for (std::size_t i = sumBegin; i < sumEnd; ++i)
+                    {
+                        output[i] += tailPrecalculated0_[precalculatedPos];
+                        ++precalculatedPos;
+                    }
+                }
+
+                // Sum: 2nd-Nth tail block
+                if (!tailPrecalculated_.empty())
+                {
+                    std::size_t precalculatedPos = precalculatedPos_;
+                    for (std::size_t i = sumBegin; i < sumEnd; ++i)
+                    {
+                        output[i] += tailPrecalculated_[precalculatedPos];
+                        ++precalculatedPos;
+                    }
+                }
+
+                precalculatedPos_ += processing;
+            }
+
+            // Fill input buffer for tail convolution
+            std::copy_n(input.begin() + processed, processing,
+                        tailInput_.begin() + tailInputFill_);
+            tailInputFill_ += processing;
+            assert(tailInputFill_ <= tailBlockSize_);
+
+            // Convolution: 1st tail block
+            if (!tailPrecalculated0_.empty() && tailInputFill_ % headBlockSize_ == 0)
+            {
+                assert(tailInputFill_ >= headBlockSize_);
+                const std::size_t blockOffset = tailInputFill_ - headBlockSize_;
+
+                auto input_span = std::span(tailInput_.data() + blockOffset, headBlockSize_);
+                auto output_span = std::span(tailOutput0_.data() + blockOffset, headBlockSize_);
+                tailConvolver0_.process(input_span, output_span);
+
+                if (tailInputFill_ == tailBlockSize_)
+                {
+                    tailPrecalculated0_.swap(tailOutput0_);
+                }
+            }
+
+            // Convolution: 2nd-Nth tail block.
+            if (!tailPrecalculated_.empty() && tailInputFill_ == tailBlockSize_ &&
+                !backgroundProcessingInput_.empty() && !tailOutput_.empty())
+            {
+                tailPrecalculated_.swap(tailOutput_);
+                tailConvolver_.process(tailInput_, tailOutput_);
+            }
+
+            if (tailInputFill_ == tailBlockSize_)
+            {
+                tailInputFill_ = 0;
+                precalculatedPos_ = 0;
+            }
+
+            processed += processing;
+        }
+    }
 }
 
 } // namespace pffft

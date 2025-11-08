@@ -153,7 +153,6 @@ static bool TestConvolver(size_t inputSize,
   return true;
 }
 
-#if 0
 static bool TestTwoStageConvolver(size_t inputSize,
                                   size_t irSize,
                                   size_t blockSizeMin,
@@ -185,7 +184,7 @@ static bool TestTwoStageConvolver(size_t inputSize,
   // FFT convolver
   std::vector<float> out(in.size() + ir.size() - 1, float(0.0));
   {
-    fftconvolver::TwoStageFFTConvolver convolver;
+    pffft::TwoStageConvolver convolver;
     convolver.init(blockSizeHead, blockSizeTail, ir);
     std::vector<float> inBuf(blockSizeMax);
     size_t processedOut = 0;
@@ -238,7 +237,6 @@ static bool TestTwoStageConvolver(size_t inputSize,
   }
   return true;
 }
-#endif
 
 TEST_CASE("Convolver", "One-stage convolver correctness")
 {
@@ -277,30 +275,29 @@ TEST_CASE("Convolver", "One-stage convolver correctness")
   REQUIRE(TestConvolver(100000, 4321, 100, 2048, 2048, true));
 }
 
-#if 0
 TEST_CASE("TwoStageConvolver", "Two-stage Convolver Correctness")
 {
-  REQUIRE(TestTwoStageConvolver(1, 1, 1, 1, 1, 1, true));
-  REQUIRE(TestTwoStageConvolver(2, 2, 2, 2, 2, 2, true));
-  REQUIRE(TestTwoStageConvolver(3, 3, 3, 3, 3, 3, true));
+  REQUIRE(TestTwoStageConvolver(1, 1, 1, 1, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(2, 2, 2, 2, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(3, 3, 3, 3, 16, 32, true));
 
-  REQUIRE(TestTwoStageConvolver(3, 2, 2, 2, 2, 4, true));
-  REQUIRE(TestTwoStageConvolver(4, 2, 2, 2, 2, 4, true));
-  REQUIRE(TestTwoStageConvolver(4, 3, 2, 2, 2, 4, true));
-  REQUIRE(TestTwoStageConvolver(9, 4, 3, 3, 2, 4, true));
-  REQUIRE(TestTwoStageConvolver(171, 7, 5, 5, 5, 10,true));
-  REQUIRE(TestTwoStageConvolver(1979, 17, 7, 7, 5, 10, true));
-  REQUIRE(TestTwoStageConvolver(100, 10, 3, 5, 5, 10, true));
-  REQUIRE(TestTwoStageConvolver(123, 45, 12, 34, 34, 68, true));
+  REQUIRE(TestTwoStageConvolver(3, 2, 2, 2, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(4, 2, 2, 2, 32, 64, true));
+  REQUIRE(TestTwoStageConvolver(4, 3, 2, 2, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(9, 4, 3, 3, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(171, 7, 5, 5, 16, 32,true));
+  REQUIRE(TestTwoStageConvolver(1979, 17, 7, 7, 16, 64, true));
+  REQUIRE(TestTwoStageConvolver(100, 10, 3, 5, 16, 64, true));
+  REQUIRE(TestTwoStageConvolver(123, 45, 12, 34, 32, 64, true));
 
-  REQUIRE(TestTwoStageConvolver(2, 3, 2, 2, 1, 2, true));
-  REQUIRE(TestTwoStageConvolver(2, 4, 2, 2, 1, 2, true));
-  REQUIRE(TestTwoStageConvolver(3, 4, 2, 2, 1, 2, true));
-  REQUIRE(TestTwoStageConvolver(4, 9, 3, 3, 2, 4, true));
-  REQUIRE(TestTwoStageConvolver(7, 171, 5, 5, 2, 16, true));
-  REQUIRE(TestTwoStageConvolver(17, 1979, 7, 7, 4, 16, true));
-  REQUIRE(TestTwoStageConvolver(10, 100, 3, 5, 1, 4, true));
-  REQUIRE(TestTwoStageConvolver(45, 123, 12, 34, 4, 32, true));
+  REQUIRE(TestTwoStageConvolver(2, 3, 2, 2, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(2, 4, 2, 2, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(3, 4, 2, 2, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(4, 9, 3, 3, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(7, 171, 5, 5, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(17, 1979, 7, 7, 32, 256, true));
+  REQUIRE(TestTwoStageConvolver(10, 100, 3, 5, 16, 32, true));
+  REQUIRE(TestTwoStageConvolver(45, 123, 12, 34, 16, 32, true));
 
   REQUIRE(TestTwoStageConvolver(100000, 1234, 100,  128,  128, 4096, true));
   REQUIRE(TestTwoStageConvolver(100000, 1234, 100,  256,  256, 4096, true));
@@ -314,4 +311,3 @@ TEST_CASE("TwoStageConvolver", "Two-stage Convolver Correctness")
   REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 1024, 1024, 4096, true));
   REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 2048, 2048, 4096, true));
 }
-#endif

@@ -70,6 +70,7 @@ class Convolver
     void reset();
 
   private:
+    friend class TwoStageConvolver;
     using RTFFT = FFT<float, std::dynamic_extent>;
     std::size_t blockSize_;
     std::size_t segSize_;
@@ -108,7 +109,30 @@ class TwoStageConvolver
 {
   public:
     TwoStageConvolver();
-    virtual ~TwoStageConvolver();
+
+    bool init(std::size_t headBlockSize, std::size_t tailBlockSize, std::span<float> ir);
+    void process(std::span<float> input, std::span<float> output);
+    void reset();
+
+  private:
+    using FloatVec = Convolver::RTFFT::UnorderedTimeVector;
+    std::size_t headBlockSize_{0};
+    std::size_t tailBlockSize_{0};
+    Convolver headConvolver_;
+    Convolver tailConvolver0_;
+    FloatVec tailOutput0_;
+    FloatVec tailPrecalculated0_;
+    Convolver tailConvolver_;
+    FloatVec tailOutput_;
+    FloatVec tailPrecalculated_;
+    FloatVec tailInput_;
+    std::size_t tailInputFill_{0};
+    std::size_t precalculatedPos_{0};
+    FloatVec backgroundProcessingInput_;
+
+    // Prevent uncontrolled usage
+    TwoStageConvolver(const TwoStageConvolver &) = delete;
+    TwoStageConvolver &operator=(const TwoStageConvolver &) = delete;
 };
 
 } // namespace pffft
