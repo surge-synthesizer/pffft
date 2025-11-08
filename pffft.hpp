@@ -50,8 +50,8 @@ template <typename T, std::size_t N> class FFT
     // instead, that's what you'll get.
     static constexpr std::size_t alignment = 16;
     template <typename U> using AlignedVector = internal::AlignedVector<U, 64>;
-    using AlignedDeleterT = internal::AlignedDeleter<T, alignment>;
-    using AlignedDeleterComplex = internal::AlignedDeleter<Complex, alignment>;
+    using AlignedDeleterT = internal::AlignedArrayDeleter<T, alignment>;
+    using AlignedDeleterComplex = internal::AlignedArrayDeleter<Complex, alignment>;
 
     // Size of the time array for the FFT. Changes if you call reset().
     std::size_t size = N;
