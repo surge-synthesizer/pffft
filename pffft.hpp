@@ -6,6 +6,7 @@
 
 #include <array>
 #include <complex>
+#include <memory>
 #include <new>
 #include <span>
 #include <type_traits>
@@ -97,7 +98,7 @@ template <typename T, std::size_t N> class FFT
         requires(N != std::dynamic_extent);
     // Constructor when N = std::dynamic_extent.
     FFT(std::size_t size, bool use_stack = false)
-        requires(N == std::dynamic_extent);
+    requires(N == std::dynamic_extent);
     ~FFT();
 
     // Change the FFT size. Only usable when N = std::dynamic_extent.
@@ -344,9 +345,10 @@ template <typename T, std::size_t N> void FFT<T, N>::forward(const T *time, Comp
         throw std::invalid_argument("output not aligned");
     }
 
-    internal::pffft_transform_ordered(setup_, reinterpret_cast<const float *>(time),
-                                      reinterpret_cast<float *>(freq), work_,
-                                      internal::PFFFT_FORWARD);
+    internal::pffft_transform_ordered(
+        setup_, std::assume_aligned<alignment>(reinterpret_cast<const float *>(time)),
+        std::assume_aligned<alignment>(reinterpret_cast<float *>(freq)), work_,
+        internal::PFFFT_FORWARD);
 }
 
 template <typename T, std::size_t N>
@@ -370,17 +372,14 @@ void FFT<T, N>::inverse(const std::span<const Complex> freq, std::span<T> time)
 template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq, T *time)
 {
     if (!internal::is_aligned(time, alignment)) [[unlikely]]
-    {
-        throw std::invalid_argument("input not aligned");
-    }
-    if (!internal::is_aligned(freq, alignment)) [[unlikely]]
-    {
         throw std::invalid_argument("output not aligned");
-    }
+    if (!internal::is_aligned(freq, alignment)) [[unlikely]]
+        throw std::invalid_argument("input not aligned");
 
-    internal::pffft_transform_ordered(setup_, reinterpret_cast<const float *>(freq),
-                                      reinterpret_cast<float *>(time), work_,
-                                      internal::PFFFT_BACKWARD);
+    internal::pffft_transform_ordered(
+        setup_, std::assume_aligned<alignment>(reinterpret_cast<const float *>(freq)),
+        std::assume_aligned<alignment>(reinterpret_cast<float *>(time)), work_,
+        internal::PFFFT_BACKWARD);
 }
 
 template <typename T, std::size_t N>
@@ -390,8 +389,13 @@ void FFT<T, N>::forward_unordered(const std::span<T> time, std::span<float> freq
         throw std::invalid_argument("time is not large enough");
     if (freq.size() < spectrum_size * 2) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
-    internal::pffft_transform(setup_, reinterpret_cast<const float *>(time.data()), freq.data(),
-                              work_, internal::PFFFT_FORWARD);
+    if (!internal::is_aligned(time.data(), alignment)) [[unlikely]]
+        throw std::invalid_argument("input not aligned");
+    if (!internal::is_aligned(freq.data(), alignment)) [[unlikely]]
+        throw std::invalid_argument("output not aligned");
+    internal::pffft_transform(
+        setup_, std::assume_aligned<alignment>(reinterpret_cast<const float *>(time.data())),
+        std::assume_aligned<alignment>(freq.data()), work_, internal::PFFFT_FORWARD);
 }
 
 template <typename T, std::size_t N>
@@ -401,8 +405,14 @@ void FFT<T, N>::inverse_unordered(const std::span<float> freq, std::span<T> time
         throw std::invalid_argument("time is not large enough");
     if (freq.size() < spectrum_size * 2) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
-    internal::pffft_transform(setup_, freq.data(), reinterpret_cast<float *>(time.data()), work_,
-                              internal::PFFFT_BACKWARD);
+    if (!internal::is_aligned(time.data(), alignment)) [[unlikely]]
+        throw std::invalid_argument("output not aligned");
+    if (!internal::is_aligned(freq.data(), alignment)) [[unlikely]]
+        throw std::invalid_argument("input not aligned");
+    internal::pffft_transform(
+        setup_, std::assume_aligned<alignment>(freq.data()),
+        std::assume_aligned<alignment>(reinterpret_cast<float *>(time.data())), work_,
+        internal::PFFFT_BACKWARD);
 }
 
 template <typename T, std::size_t N>
