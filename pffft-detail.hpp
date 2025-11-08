@@ -111,6 +111,18 @@ class aligned_allocator
 template <typename T, std::size_t N>
 using AlignedVector = typename std::vector<T, internal::aligned_allocator<T, N>>;
 
+// Annoying MSVC bug work-around where it doesn't realize it has to call the
+// aligned deleter. Use this for aligned arrays.
+template <typename T, std::size_t Alignment>
+struct AlignedDeleter
+{
+    void operator()(T *p) const
+    {
+        if (p)
+            ::operator delete(p, std::align_val_t{Alignment});
+    }
+};
+
 } // namespace internal
 
 } // namespace pffft
