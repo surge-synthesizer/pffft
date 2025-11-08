@@ -292,8 +292,7 @@ void TwoStageConvolver::process(std::span<float> input, std::span<float> output)
             }
 
             // Fill input buffer for tail convolution
-            std::copy_n(input.begin() + processed, processing,
-                        tailInput_.begin() + tailInputFill_);
+            std::copy_n(input.begin() + processed, processing, tailInput_.begin() + tailInputFill_);
             tailInputFill_ += processing;
             assert(tailInputFill_ <= tailBlockSize_);
 
