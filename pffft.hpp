@@ -48,8 +48,8 @@ template <typename T, std::size_t N> class FFT
     // alignment so that's what we set here. However, PFFFT likes to allocate at
     // 64-byte alignment for L2 caches so if you depend on this class's types
     // instead, that's what you'll get.
-    static constexpr std::size_t alignment = 16;
-    template <typename U> using AlignedVector = internal::AlignedVector<U, 64>;
+    static constexpr std::size_t alignment = 64;
+    template <typename U> using AlignedVector = internal::AlignedVector<U, alignment>;
     using AlignedDeleterT = internal::AlignedArrayDeleter<T, alignment>;
     using AlignedDeleterComplex = internal::AlignedArrayDeleter<Complex, alignment>;
 
@@ -112,7 +112,7 @@ template <typename T, std::size_t N> class FFT
     FreqVector createFreqVector() const;
     UnorderedTimeVector createUnorderedTimeVector() const;
     UnorderedFreqVector createUnorderedFreqVector() const;
-    // As above, but arrays. Need the special deleter because of MSVC problems.
+    // As above, but arrays. Need the special deleter because of an absurd MSVC bug.
     std::unique_ptr<T[], AlignedDeleterT> createTimeArray() const;
     std::unique_ptr<Complex[], AlignedDeleterComplex> createFreqArray() const;
 
@@ -192,6 +192,8 @@ template <typename T, std::size_t N> class FFT
         std::is_same_v<std::complex<float>, typename std::remove_cv<T>::type>
             ? internal::PFFFT_COMPLEX
             : internal::PFFFT_REAL};
+
+    static constexpr std::size_t kMinAlignment = 16;
 
     const internal::aligned_allocator<float, alignment> aligned_float_allocator_;
     bool use_stack_{false};
@@ -304,16 +306,20 @@ typename FFT<T, N>::UnorderedFreqVector FFT<T, N>::createUnorderedFreqVector() c
 template <typename T, std::size_t N>
 std::unique_ptr<T[], typename FFT<T, N>::AlignedDeleterT> FFT<T, N>::createTimeArray() const
 {
-    return std::unique_ptr<T[], AlignedDeleterT>(new (static_cast<std::align_val_t>(alignment))
-                                                     T[size]);
+    return std::unique_ptr<T[], AlignedDeleterT>(reinterpret_cast<T *>(
+        // Work around an absurd MSVC bug with aligned operator new, closed as "low
+        // priority" despite being an obvious bug.
+        ::operator new[](sizeof(T) * size, std::align_val_t{alignment})));
 }
 
 template <typename T, std::size_t N>
 std::unique_ptr<typename FFT<T, N>::Complex[], typename FFT<T, N>::AlignedDeleterComplex>
 FFT<T, N>::createFreqArray() const
 {
-    return std::unique_ptr<Complex[], AlignedDeleterComplex>(
-        new (static_cast<std::align_val_t>(alignment)) Complex[spectrum_size]);
+    return std::unique_ptr<Complex[], AlignedDeleterComplex>(reinterpret_cast<Complex *>(
+        // Work around an absurd MSVC bug with aligned operator new, closed as "low
+        // priority" despite being an obvious bug.
+        ::operator new[](sizeof(Complex) * size, std::align_val_t{alignment})));
 }
 
 template <typename T, std::size_t N>
@@ -336,18 +342,18 @@ void FFT<T, N>::forward(const std::span<const T> time, std::span<Complex> freq)
 
 template <typename T, std::size_t N> void FFT<T, N>::forward(const T *time, Complex *freq)
 {
-    if (!internal::is_aligned(time, alignment)) [[unlikely]]
+    if (!internal::is_aligned(time, kMinAlignment)) [[unlikely]]
     {
         throw std::invalid_argument("input not aligned");
     }
-    if (!internal::is_aligned(freq, alignment)) [[unlikely]]
+    if (!internal::is_aligned(freq, kMinAlignment)) [[unlikely]]
     {
         throw std::invalid_argument("output not aligned");
     }
 
     internal::pffft_transform_ordered(
-        setup_, std::assume_aligned<alignment>(reinterpret_cast<const float *>(time)),
-        std::assume_aligned<alignment>(reinterpret_cast<float *>(freq)), work_,
+        setup_, std::assume_aligned<kMinAlignment>(reinterpret_cast<const float *>(time)),
+        std::assume_aligned<kMinAlignment>(reinterpret_cast<float *>(freq)), work_,
         internal::PFFFT_FORWARD);
 }
 
@@ -371,14 +377,14 @@ void FFT<T, N>::inverse(const std::span<const Complex> freq, std::span<T> time)
 
 template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq, T *time)
 {
-    if (!internal::is_aligned(time, alignment)) [[unlikely]]
+    if (!internal::is_aligned(time, kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("output not aligned");
-    if (!internal::is_aligned(freq, alignment)) [[unlikely]]
+    if (!internal::is_aligned(freq, kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("input not aligned");
 
     internal::pffft_transform_ordered(
-        setup_, std::assume_aligned<alignment>(reinterpret_cast<const float *>(freq)),
-        std::assume_aligned<alignment>(reinterpret_cast<float *>(time)), work_,
+        setup_, std::assume_aligned<kMinAlignment>(reinterpret_cast<const float *>(freq)),
+        std::assume_aligned<kMinAlignment>(reinterpret_cast<float *>(time)), work_,
         internal::PFFFT_BACKWARD);
 }
 
@@ -389,13 +395,13 @@ void FFT<T, N>::forward_unordered(const std::span<T> time, std::span<float> freq
         throw std::invalid_argument("time is not large enough");
     if (freq.size() < spectrum_size * 2) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
-    if (!internal::is_aligned(time.data(), alignment)) [[unlikely]]
+    if (!internal::is_aligned(time.data(), kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("input not aligned");
-    if (!internal::is_aligned(freq.data(), alignment)) [[unlikely]]
+    if (!internal::is_aligned(freq.data(), kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("output not aligned");
     internal::pffft_transform(
-        setup_, std::assume_aligned<alignment>(reinterpret_cast<const float *>(time.data())),
-        std::assume_aligned<alignment>(freq.data()), work_, internal::PFFFT_FORWARD);
+        setup_, std::assume_aligned<kMinAlignment>(reinterpret_cast<const float *>(time.data())),
+        std::assume_aligned<kMinAlignment>(freq.data()), work_, internal::PFFFT_FORWARD);
 }
 
 template <typename T, std::size_t N>
@@ -405,13 +411,13 @@ void FFT<T, N>::inverse_unordered(const std::span<float> freq, std::span<T> time
         throw std::invalid_argument("time is not large enough");
     if (freq.size() < spectrum_size * 2) [[unlikely]]
         throw std::invalid_argument("freq is not large enough");
-    if (!internal::is_aligned(time.data(), alignment)) [[unlikely]]
+    if (!internal::is_aligned(time.data(), kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("output not aligned");
-    if (!internal::is_aligned(freq.data(), alignment)) [[unlikely]]
+    if (!internal::is_aligned(freq.data(), kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("input not aligned");
     internal::pffft_transform(
-        setup_, std::assume_aligned<alignment>(freq.data()),
-        std::assume_aligned<alignment>(reinterpret_cast<float *>(time.data())), work_,
+        setup_, std::assume_aligned<kMinAlignment>(freq.data()),
+        std::assume_aligned<kMinAlignment>(reinterpret_cast<float *>(time.data())), work_,
         internal::PFFFT_BACKWARD);
 }
 
