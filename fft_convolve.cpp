@@ -215,6 +215,9 @@ bool TwoStageConvolver::init(std::size_t headBlockSize, std::size_t tailBlockSiz
     if (!pffft::internal::IsPowerOfTwo(tailBlockSize))
         return false;
 
+    headBlockSize_ = headBlockSize;
+    tailBlockSize_ = tailBlockSize;
+
     const auto head_ir = ir.first(std::min(ir.size(), tailBlockSize_));
     headConvolver_.init(headBlockSize_, head_ir);
 

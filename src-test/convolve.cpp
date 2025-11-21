@@ -134,7 +134,7 @@ static bool TestConvolver(size_t inputSize, size_t irSize, size_t blockSizeMin, 
         {
             const double a = static_cast<double>(out[i]);
             const double b = static_cast<double>(outSimple[i]);
-            if (::fabs(a) > 1.0 && ::fabs(b) > 1.0)
+            if (::fabs(b) > 1.0)
             {
                 const double absError = ::fabs(a - b);
                 const double relError = absError / b;
@@ -219,7 +219,7 @@ static bool TestTwoStageConvolver(size_t inputSize, size_t irSize, size_t blockS
         {
             const double a = static_cast<double>(out[i]);
             const double b = static_cast<double>(outSimple[i]);
-            if (::fabs(a) > 1.0 && ::fabs(b) > 1.0)
+            if (::fabs(b) > 1)
             {
                 const double absError = ::fabs(a - b);
                 const double relError = absError / b;
@@ -305,7 +305,7 @@ TEST_CASE("TwoStageConvolver", "Two-stage Convolver Correctness")
     REQUIRE(TestTwoStageConvolver(100000, 1234, 100, 1024, 1024, 4096, true));
     REQUIRE(TestTwoStageConvolver(100000, 1234, 100, 2048, 2048, 4096, true));
 
-    REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 128, 128, 4096, true));
+    REQUIRE(TestTwoStageConvolver(100000, 8000, 32, 32, 32, 256, true));
     REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 256, 256, 4096, true));
     REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 512, 512, 4096, true));
     REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 1024, 1024, 4096, true));
