@@ -226,10 +226,10 @@ static bool TestTwoStageConvolver(size_t inputSize, size_t irSize, size_t blockS
                 const double relError = absError / b;
                 if (relError > relTolerance && absError > absTolerance)
                 {
-                    std::cerr << "Element " << i << " mismatch: reference value " << out[i]
-                              << ", FFT value " << outSimple[i] << "; errors (" << absError << ", "
-                              << relError << "), tolerances (" << absTolerance << ", "
-                              << relTolerance << ")" << std::endl;
+                    std::cerr << "Element " << i << " mismatch: reference value " << b
+                              << ", FFT value " << a << "; errors (" << absError << ", " << relError
+                              << "), tolerances (" << absTolerance << ", " << relTolerance << ")"
+                              << std::endl;
                     ++diffSamples;
                 }
             }
