@@ -483,11 +483,6 @@ extern "C"
 
 TEST_CASE("Validity", "Tests PFFFT validity")
 {
-    int Nvalues[] = {64,   96,       128,     160,   192,        256,         384,  5 * 96,
-                     512,  5 * 128,  3 * 256, 800,   1024,       2048,        2400, 4096,
-                     8192, 9 * 1024, 16384,   32768, 256 * 1024, 1024 * 1024, -1};
-    int i;
-
 #ifndef PFFFT_SIMD_DISABLE
     validate_pffft_simd();
 #endif

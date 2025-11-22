@@ -77,13 +77,13 @@ static bool TestConvolver(size_t inputSize, size_t irSize, size_t blockSizeMin, 
     std::vector<float> in(inputSize);
     for (size_t i = 0; i < inputSize; ++i)
     {
-        in[i] = 0.1f * static_cast<float>(i + 1);
+        in[i] = std::fmod(0.147f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     std::vector<float> ir(irSize);
     for (size_t i = 0; i < irSize; ++i)
     {
-        ir[i] = 0.1f * static_cast<float>(i + 1);
+        ir[i] = std::fmod(0.1f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     // Simple convolver
@@ -162,13 +162,13 @@ static bool TestTwoStageConvolver(size_t inputSize, size_t irSize, size_t blockS
     std::vector<float> in(inputSize);
     for (size_t i = 0; i < inputSize; ++i)
     {
-        in[i] = 0.1f * static_cast<float>(i + 1);
+        in[i] = std::fmod(0.1f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     std::vector<float> ir(irSize);
     for (size_t i = 0; i < irSize; ++i)
     {
-        ir[i] = 0.1f * static_cast<float>(i + 1);
+        ir[i] = std::fmod(0.13f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     // Simple convolver

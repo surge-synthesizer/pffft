@@ -55,13 +55,13 @@ bool Convolver::init(std::size_t blockSize, std::span<float> ir)
     fftBuffer_ = fft_.createUnorderedTimeVector();
 
     // Prepare segments.
-    for (auto i = 0; i < segCount_; i++)
+    for (std::size_t i = 0; i < segCount_; i++)
     {
         segments_.push_back(fft_.createUnorderedFreqVector());
     }
 
     // Prepare IR
-    for (auto i = 0; i < segCount_; i++)
+    for (std::size_t i = 0; i < segCount_; i++)
     {
         auto block = fft_.createUnorderedTimeVector();
         if (ir.size() > blockSize)
