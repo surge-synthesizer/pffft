@@ -92,6 +92,7 @@ TEST_CASE("Sine", "Sine Wave Wrapper Equivalence")
     }
 
     REQUIRE(true);
+    pffft_destroy_setup(setup);
 }
 
 TEST_CASE("Dynamic Sine", "Dynamic Sine Wave Wrapper Equivalence")
@@ -171,4 +172,6 @@ TEST_CASE("Dynamic Sine", "Dynamic Sine Wave Wrapper Equivalence")
     }
 
     REQUIRE(true);
+
+    pffft_destroy_setup(setup);
 }

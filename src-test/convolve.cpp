@@ -21,6 +21,7 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 #include <numeric>
 #include <vector>
 
@@ -76,13 +77,13 @@ static bool TestConvolver(size_t inputSize, size_t irSize, size_t blockSizeMin, 
     std::vector<float> in(inputSize);
     for (size_t i = 0; i < inputSize; ++i)
     {
-        in[i] = 0.1f * static_cast<float>(i + 1);
+        in[i] = std::fmod(0.147f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     std::vector<float> ir(irSize);
     for (size_t i = 0; i < irSize; ++i)
     {
-        ir[i] = 0.1f * static_cast<float>(i + 1);
+        ir[i] = std::fmod(0.1f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     // Simple convolver
@@ -134,7 +135,7 @@ static bool TestConvolver(size_t inputSize, size_t irSize, size_t blockSizeMin, 
         {
             const double a = static_cast<double>(out[i]);
             const double b = static_cast<double>(outSimple[i]);
-            if (::fabs(a) > 1.0 && ::fabs(b) > 1.0)
+            if (::fabs(b) > 1.0)
             {
                 const double absError = ::fabs(a - b);
                 const double relError = absError / b;
@@ -161,13 +162,13 @@ static bool TestTwoStageConvolver(size_t inputSize, size_t irSize, size_t blockS
     std::vector<float> in(inputSize);
     for (size_t i = 0; i < inputSize; ++i)
     {
-        in[i] = 0.1f * static_cast<float>(i + 1);
+        in[i] = std::fmod(0.1f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     std::vector<float> ir(irSize);
     for (size_t i = 0; i < irSize; ++i)
     {
-        ir[i] = 0.1f * static_cast<float>(i + 1);
+        ir[i] = std::fmod(0.13f * static_cast<float>(i + 1), 2.f) - 1.f;
     }
 
     // Simple convolver
@@ -219,12 +220,16 @@ static bool TestTwoStageConvolver(size_t inputSize, size_t irSize, size_t blockS
         {
             const double a = static_cast<double>(out[i]);
             const double b = static_cast<double>(outSimple[i]);
-            if (::fabs(a) > 1.0 && ::fabs(b) > 1.0)
+            if (::fabs(b) > 1)
             {
                 const double absError = ::fabs(a - b);
                 const double relError = absError / b;
                 if (relError > relTolerance && absError > absTolerance)
                 {
+                    std::cerr << "Element " << i << " mismatch: reference value " << b
+                              << ", FFT value " << a << "; errors (" << absError << ", " << relError
+                              << "), tolerances (" << absTolerance << ", " << relTolerance << ")"
+                              << std::endl;
                     ++diffSamples;
                 }
             }
@@ -305,7 +310,7 @@ TEST_CASE("TwoStageConvolver", "Two-stage Convolver Correctness")
     REQUIRE(TestTwoStageConvolver(100000, 1234, 100, 1024, 1024, 4096, true));
     REQUIRE(TestTwoStageConvolver(100000, 1234, 100, 2048, 2048, 4096, true));
 
-    REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 128, 128, 4096, true));
+    REQUIRE(TestTwoStageConvolver(100000, 8000, 32, 32, 32, 256, true));
     REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 256, 256, 4096, true));
     REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 512, 512, 4096, true));
     REQUIRE(TestTwoStageConvolver(100000, 4321, 100, 1024, 1024, 4096, true));
