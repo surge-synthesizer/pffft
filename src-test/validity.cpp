@@ -37,6 +37,8 @@
 
 #define MAX_OF(x, y) ((x) > (y) ? (x) : (y))
 
+using namespace pffft;
+
 extern "C"
 {
 

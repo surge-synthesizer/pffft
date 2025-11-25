@@ -9,8 +9,6 @@ namespace pffft
 {
 namespace internal
 {
-#include "pffft.h"
-
 // Utility function to make sure our inputs are powers of two.
 // Can't use the Juce one because we're in a split-out library.
 static constexpr bool IsPowerOfTwo(size_t x) { return x && (x & (x - 1)) == 0; }

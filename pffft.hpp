@@ -11,6 +11,7 @@
 #include <span>
 #include <type_traits>
 
+#include "pffft.h"
 #include "pffft-detail.hpp"
 
 static_assert(__cplusplus >= 202002L, "Surge team libraries have moved to C++ 20");
@@ -186,19 +187,19 @@ template <typename T, std::size_t N> class FFT
     void scale_unordered(std::span<float> freq) const;
 
   private:
-    typedef internal::pffft_transform_t TransformType;
+    typedef pffft_transform_t TransformType;
 
     static constexpr TransformType FftType{
         std::is_same_v<std::complex<float>, typename std::remove_cv<T>::type>
-            ? internal::PFFFT_COMPLEX
-            : internal::PFFFT_REAL};
+            ? PFFFT_COMPLEX
+            : PFFFT_REAL};
 
     static constexpr std::size_t kMinAlignment = 16;
 
     const internal::aligned_allocator<float, alignment> aligned_float_allocator_;
     bool use_stack_{false};
     float *work_{nullptr};
-    internal::PFFFT_Setup *setup_{nullptr};
+    PFFFT_Setup *setup_{nullptr};
 
     // Disable assignment and copy.
     FFT(const FFT<T, N> &fft) = delete;
@@ -351,10 +352,10 @@ template <typename T, std::size_t N> void FFT<T, N>::forward(const T *time, Comp
         throw std::invalid_argument("output not aligned");
     }
 
-    internal::pffft_transform_ordered(
+    pffft_transform_ordered(
         setup_, std::assume_aligned<kMinAlignment>(reinterpret_cast<const float *>(time)),
         std::assume_aligned<kMinAlignment>(reinterpret_cast<float *>(freq)), work_,
-        internal::PFFFT_FORWARD);
+        PFFFT_FORWARD);
 }
 
 template <typename T, std::size_t N>
@@ -382,10 +383,10 @@ template <typename T, std::size_t N> void FFT<T, N>::inverse(const Complex *freq
     if (!internal::is_aligned(freq, kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("input not aligned");
 
-    internal::pffft_transform_ordered(
+    pffft_transform_ordered(
         setup_, std::assume_aligned<kMinAlignment>(reinterpret_cast<const float *>(freq)),
         std::assume_aligned<kMinAlignment>(reinterpret_cast<float *>(time)), work_,
-        internal::PFFFT_BACKWARD);
+        PFFFT_BACKWARD);
 }
 
 template <typename T, std::size_t N>
@@ -399,9 +400,9 @@ void FFT<T, N>::forward_unordered(const std::span<T> time, std::span<float> freq
         throw std::invalid_argument("input not aligned");
     if (!internal::is_aligned(freq.data(), kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("output not aligned");
-    internal::pffft_transform(
+    pffft_transform(
         setup_, std::assume_aligned<kMinAlignment>(reinterpret_cast<const float *>(time.data())),
-        std::assume_aligned<kMinAlignment>(freq.data()), work_, internal::PFFFT_FORWARD);
+        std::assume_aligned<kMinAlignment>(freq.data()), work_, PFFFT_FORWARD);
 }
 
 template <typename T, std::size_t N>
@@ -415,10 +416,10 @@ void FFT<T, N>::inverse_unordered(const std::span<float> freq, std::span<T> time
         throw std::invalid_argument("output not aligned");
     if (!internal::is_aligned(freq.data(), kMinAlignment)) [[unlikely]]
         throw std::invalid_argument("input not aligned");
-    internal::pffft_transform(
+    pffft_transform(
         setup_, std::assume_aligned<kMinAlignment>(freq.data()),
         std::assume_aligned<kMinAlignment>(reinterpret_cast<float *>(time.data())), work_,
-        internal::PFFFT_BACKWARD);
+        PFFFT_BACKWARD);
 }
 
 template <typename T, std::size_t N>
@@ -431,7 +432,7 @@ void FFT<T, N>::zconvolve_accumulate(const std::span<float> dftA, const std::spa
         throw std::invalid_argument("dftB is not large enough");
     if (dftAB.size() < spectrum_size * 2) [[unlikely]]
         throw std::invalid_argument("dftAB is not large enough");
-    internal::pffft_zconvolve_accumulate(setup_, dftA.data(), dftB.data(), dftAB.data(), scale);
+    pffft_zconvolve_accumulate(setup_, dftA.data(), dftB.data(), dftAB.data(), scale);
 }
 
 template <typename T, std::size_t N>
@@ -447,7 +448,7 @@ void FFT<T, N>::zconvolve_accumulate(const std::span<Complex> dftA, const std::s
     float *a = reinterpret_cast<float *>(dftA.data());
     float *b = reinterpret_cast<float *>(dftB.data());
     float *ab = reinterpret_cast<float *>(dftAB.data());
-    internal::pffft_zconvolve_accumulate(setup_, a, b, ab, scale);
+    pffft_zconvolve_accumulate(setup_, a, b, ab, scale);
 }
 
 template <typename T, std::size_t N> void FFT<T, N>::scale(std::span<Complex> freq) const
