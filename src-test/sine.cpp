@@ -3,8 +3,6 @@
 #include <catch2.hpp>
 #include "pffft.hpp"
 
-namespace internal = pffft::internal;
-
 namespace
 {
 
@@ -21,7 +19,7 @@ float hanning(int i, int n)
 TEST_CASE("Sine", "Sine Wave Wrapper Equivalence")
 {
     using FFT = pffft::FFT<float, 256>;
-    internal::PFFFT_Setup *setup = internal::pffft_new_setup(256, internal::PFFFT_REAL);
+    pffft::PFFFT_Setup *setup = pffft::pffft_new_setup(256, pffft::PFFFT_REAL);
     FFT fft;
     FFT::TimeVector time = fft.createTimeVector();
     FFT::FreqVector freq = fft.createFreqVector();
@@ -36,8 +34,8 @@ TEST_CASE("Sine", "Sine Wave Wrapper Equivalence")
     FFT::FreqVector freqC = freq;
 
     fft.forward(time, freq);
-    internal::pffft_transform_ordered(setup, timeC.data(), reinterpret_cast<float *>(freqC.data()),
-                                      nullptr, internal::PFFFT_FORWARD);
+    pffft::pffft_transform_ordered(setup, timeC.data(), reinterpret_cast<float *>(freqC.data()),
+                                      nullptr, pffft::PFFFT_FORWARD);
     fft.scale(freq);
     fft.scale(freqC);
 
@@ -82,8 +80,8 @@ TEST_CASE("Sine", "Sine Wave Wrapper Equivalence")
     std::fill(timeA.begin(), timeA.end(), 0.f);
     fft.inverse(freq, time);
     fft.inverse(freqA, timeA);
-    internal::pffft_transform_ordered(setup, reinterpret_cast<float *>(freqC.data()), timeC.data(),
-                                      nullptr, internal::PFFFT_BACKWARD);
+    pffft::pffft_transform_ordered(setup, reinterpret_cast<float *>(freqC.data()), timeC.data(),
+                                      nullptr, pffft::PFFFT_BACKWARD);
     for (std::size_t i = 0; i < 256; i++)
     {
         REQUIRE_THAT(orig[i], Catch::Matchers::WithinAbs(time[i], 1e-5f));
@@ -98,7 +96,7 @@ TEST_CASE("Sine", "Sine Wave Wrapper Equivalence")
 TEST_CASE("Dynamic Sine", "Dynamic Sine Wave Wrapper Equivalence")
 {
     using FFT = pffft::FFT<float, std::dynamic_extent>;
-    internal::PFFFT_Setup *setup = internal::pffft_new_setup(256, internal::PFFFT_REAL);
+    pffft::PFFFT_Setup *setup = pffft::pffft_new_setup(256, pffft::PFFFT_REAL);
     FFT fft(128);
     fft.resize(256);
     FFT::TimeVector time = fft.createTimeVector();
@@ -114,8 +112,8 @@ TEST_CASE("Dynamic Sine", "Dynamic Sine Wave Wrapper Equivalence")
     FFT::FreqVector freqC = freq;
 
     fft.forward(time, freq);
-    internal::pffft_transform_ordered(setup, timeC.data(), reinterpret_cast<float *>(freqC.data()),
-                                      nullptr, internal::PFFFT_FORWARD);
+    pffft::pffft_transform_ordered(setup, timeC.data(), reinterpret_cast<float *>(freqC.data()),
+                                      nullptr, pffft::PFFFT_FORWARD);
     fft.scale(freq);
     fft.scale(freqC);
 
@@ -162,8 +160,8 @@ TEST_CASE("Dynamic Sine", "Dynamic Sine Wave Wrapper Equivalence")
     std::fill(sTimeA.begin(), sTimeA.end(), 0.f);
     fft.inverse(freq, time);
     fft.inverse(sFreqA, sTimeA);
-    internal::pffft_transform_ordered(setup, reinterpret_cast<float *>(freqC.data()), timeC.data(),
-                                      nullptr, internal::PFFFT_BACKWARD);
+    pffft::pffft_transform_ordered(setup, reinterpret_cast<float *>(freqC.data()), timeC.data(),
+                                      nullptr, pffft::PFFFT_BACKWARD);
     for (std::size_t i = 0; i < 256; i++)
     {
         REQUIRE_THAT(orig[i], Catch::Matchers::WithinAbs(time[i], 1e-5f));
